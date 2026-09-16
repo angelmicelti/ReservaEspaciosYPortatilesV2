@@ -15,7 +15,7 @@
 
 const CACHE_VERSION = 'v1.0.0';
 const CACHE = 'reservas-ies-' + CACHE_VERSION;
-const PAGE = './index.html';
+const PAGE = './reserva-espacios-IES.html';
 
 /* App shell + SDKs imprescindibles para arrancar sin red */
 const PRECACHE = [
