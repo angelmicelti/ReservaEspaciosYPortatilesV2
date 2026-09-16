@@ -1,8 +1,11 @@
 /* ============================================================
    Service Worker — Reserva de Espacios · IES (PWA)
    ------------------------------------------------------------
-   - Precachea la «app shell» (HTML, manifest, iconos) y los SDK
-     de Firebase para que la interfaz arranque sin conexión.
+   - Precachea la «app shell» (index.html, la aplicación
+     reserva-espacios-IES.html, manifest, iconos) y los SDK de
+     Firebase para que la interfaz arranque sin conexión.
+   - index.html es la puerta de entrada del sitio (start_url del
+     manifest) y redirige a la aplicación.
    - Navegaciones: red primero (para recibir actualizaciones) con
      reserva en caché si falla la red.
    - CDNs de librerías (gstatic/jsDelivr/unpkg): stale-while-
@@ -13,13 +16,15 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.0.1';
 const CACHE = 'reservas-ies-' + CACHE_VERSION;
-const PAGE = './reserva-espacios-IES.html';
+const PAGE = './index.html';                  /* puerta de entrada (start_url) */
+const APP = './reserva-espacios-IES.html';    /* la aplicación */
 
 /* App shell + SDKs imprescindibles para arrancar sin red */
 const PRECACHE = [
   PAGE,
+  APP,
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -96,18 +101,21 @@ self.addEventListener('fetch', (event) => {
   const sameOrigin = url.origin === self.location.origin;
   if (!sameOrigin && !CDN_HOSTS.has(url.hostname)) return;
 
-  /* 1) Navegaciones: red primero → caché → página sin conexión */
+  /* 1) Navegaciones: red primero → caché → página sin conexión.
+        Cada URL se guarda con su contenido; sin red se sirve la
+        propia URL visitada y, si no está, directamente la app. */
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       try {
         const fresh = await fetch(req);
         const cache = await caches.open(CACHE);
-        cache.put(PAGE, fresh.clone());
+        cache.put(req, fresh.clone());
         return fresh;
       } catch (_) {
         const cache = await caches.open(CACHE);
-        return (await cache.match(PAGE)) ||
-               (await cache.match('./reserva-espacios-IES.html')) ||
+        return (await cache.match(req, { ignoreSearch: true })) ||
+               (await cache.match(APP)) ||
+               (await cache.match(PAGE)) ||
                offlineResponse();
       }
     })());
