@@ -16,10 +16,10 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v1.0.3';
+const CACHE_VERSION = 'v1.0.6';
 const CACHE = 'reservas-ies-' + CACHE_VERSION;
 const PAGE = './index.html';                  /* puerta de entrada (start_url) */
-const APP = './reserva-espacios-IES.html';    /* la aplicación */
+const APP = './index.html';    /* la aplicación */
 
 /* App shell + SDKs imprescindibles para arrancar sin red */
 const PRECACHE = [
