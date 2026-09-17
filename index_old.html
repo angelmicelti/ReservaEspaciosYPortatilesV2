@@ -440,7 +440,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
       <button class="btn pri" style="width:100%;justify-content:center;padding:10px" id="login-btn" type="submit">Iniciar sesión</button>
       <div class="login-hint" id="login-hint">
         <b>Acceso</b> · Escribe solo tu <b>usuario IdEA</b>, sin <code>@g.educaand.es</code> (p. ej., <code>jandluz123</code>).<br>
-        Profesorado: la <b>contraseña inicial</b> es tu propio <b>usuario IdEA</b> (la misma que el usuario de acceso). Cámbiala tras entrar desde el icono de la llave; si no puedes entrar, consulta con administración.
+        Administración: <code>admin</code> / <code>admin123</code> (cambia la contraseña tras entrar) · Profesorado: contraseña inicial = <b>DNI con letra</b>.
       </div>
     </form>
     <p class="login-foot">Acceso reservado al personal del centro</p>
@@ -521,8 +521,7 @@ function tramoPast(d,id){if(String(d||'')!==todayISO())return false;const t=tram
 function anyTramoPast(d,ids){return (ids||[]).some(x=>tramoPast(d,x))}
 function pastGuard(d,slot){if(isPastDay(d)){toast('Ese día ya ha pasado: no se puede reservar','err');return true}if(slot&&tramoPast(d,slot)){toast('Esa hora ya ha pasado: no se puede reservar','err');return true}return false}
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
-function cursoAnios(){const m=/(\d{4})\s*-\s*(\d{4})/.exec(String((S.cursos[S.cursoSel]||{}).nombre||''));return m?[m[1],m[2]]:schoolYearName().split('-')} /* años del curso ABIERTO si su nombre los trae (p. ej. 2025-2026) */
-function finCursoISO(){const p=cursoAnios();return p[1]+'-06-30'}
+function finCursoISO(){const p=schoolYearName().split('-');return p[1]+'-06-30'}
 function monday(d){const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
 function dow1(iso){return (dparse(iso).getDay()+6)%7+1}
 function fmtLargo(iso){const d=dparse(iso);return DIAS[d.getDay()]+', '+d.getDate()+' de '+['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][d.getMonth()]+' de '+d.getFullYear()}
@@ -533,11 +532,6 @@ function fmtTsHora(ts){if(!ts)return '';const d=new Date(ts);return pad2(d.getDa
 function normTxt(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
 function cleanTxt(s){return String(s==null?'':s).replace(/\s+/g,' ').trim()}
 function fixPhone(s){let v=cleanTxt(s);if(/\d{5,}\.0$/.test(v))v=v.replace(/\.0$/,'');return v}
-/* Usuario IdEA normalizado: minúsculas y sin acentos, sin el dominio @g.educaand.es
-   y sin caracteres no válidos. Se usa para el usuario de acceso, su contraseña inicial
-   y todas las comparaciones, de modo que pegar el correo completo o escribir con
-   mayúsculas/acentos da igual en cualquier punto de la aplicación. */
-function normIdea(v){return normTxt(String(v||'')).split('@')[0].replace(/[^a-z0-9._-]/g,'')}
 function ddmmyy2iso(s){const m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(String(s||'').trim());if(!m)return '';let y=m[3];if(y.length===2)y='20'+y;return y+'-'+pad2(+m[2])+'-'+pad2(+m[1])}
 
 /* ---- SHA-256 para contraseñas (crypto.subtle + fallback JS puro) ---- */
@@ -667,10 +661,30 @@ const DEFAULT_TRAMOS=[
  {id:'t6',label:'6ª hora',ini:'12:45',fin:'13:30',res:true},
  {id:'t7',label:'7ª hora',ini:'13:30',fin:'14:15',res:true}
 ];
-/* El profesorado ya no viene precargado en el código (antes se incrustaban aquí
-   nombres, DNIs, teléfonos y usuarios IdEA). Tras el primer arranque se crea desde
-   la vista «Profesorado», importando el RelPerCen.xls de Séneca o pegando los datos;
-   la contraseña inicial de cada cuenta es su propio usuario IdEA. */
+/* Profesorado precargado desde RelPerCen.xls (export de Séneca: PERSONAL DEL CENTRO) */
+const SEED_TEACHERS=[
+ {nombre:'Baena Espejo, María de las Mercedes',dni:'30985634B',puesto:'Inglés P.E.S.',toma:'01/09/2022',cese:'',dep:'Idiomas',tel:'651997139',mov:'651997139',idea:'mbaeesp634',cuenta:'mbaeesp634@g.educaand.es',coord:'Sí'},
+ {nombre:'Borreguero Cantador, María José',dni:'30942358K',puesto:'Física y Química P.E.S.',toma:'01/09/2024',cese:'',dep:'Ciencias Naturales',tel:'627772524',mov:'627772524',idea:'mborcan358',cuenta:'mborcan358@g.educaand.es',coord:'Sí'},
+ {nombre:'Caño Cuevas, Ana Patricia',dni:'77852004V',puesto:'Frances P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Idiomas',tel:'',mov:'652290924',idea:'acancue004',cuenta:'acancue004@g.educaand.es',coord:'No'},
+ {nombre:'Casado Domínguez, Ana Belén',dni:'30825005Z',puesto:'Física y Química P.E.S.',toma:'01/09/2024',cese:'',dep:'Ciencias Naturales',tel:'646856643',mov:'646856643',idea:'acasdom005',cuenta:'acasdom005@g.educaand.es',coord:'Sí'},
+ {nombre:'Cumplido Peso, Belén',dni:'30817165V',puesto:'Pedagogía Terapeutica Eso',toma:'01/09/2012',cese:'',dep:'Orientación',tel:'679141303',mov:'679141303',idea:'bcumpes165',cuenta:'bcumpes165@g.educaand.es',coord:'Sí'},
+ {nombre:'Espejo Herrero, Eloy',dni:'30816661L',puesto:'Matemáticas P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Matematicas',tel:'637159301',mov:'637159301',idea:'eespher661',cuenta:'eespher661@g.educaand.es',coord:'No'},
+ {nombre:'Fuentes Fernández, Ángela María',dni:'30988942F',puesto:'Lengua Castellana y Literatura P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Lengua Castellana y Literatura',tel:'637959136',mov:'637959136',idea:'afuefre942',cuenta:'afuefre942@g.educaand.es',coord:'No'},
+ {nombre:'Gainzarain Idirin, Mikel',dni:'78959225H',puesto:'Educación Física P.E.S.',toma:'01/09/2026',cese:'',dep:'Educación Física',tel:'648027483',mov:'648027483',idea:'mgaiidi225',cuenta:'mgaiidi225@g.educaand.es',coord:'No'},
+ {nombre:'García Castillo, Francisco Manuel',dni:'30815345Z',puesto:'Geografía e Historia P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Geografía, Historia y Religión',tel:'619351848',mov:'619351848',idea:'fgarcas345',cuenta:'fgarcas345@g.educaand.es',coord:'No'},
+ {nombre:'González Martín, Ana María',dni:'20229051E',puesto:'Dibujo P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Arte',tel:'620324841',mov:'620324841',idea:'agonmar051',cuenta:'agonmar051@g.educaand.es',coord:'No'},
+ {nombre:'Jiménez García, Carmelo',dni:'14614989F',puesto:'Pedagogía Terapeutica Eso',toma:'01/09/2026',cese:'31/08/2027',dep:'Orientación',tel:'600423161',mov:'600423161',idea:'cjimgar989',cuenta:'cjimgar989@g.educaand.es',coord:'No'},
+ {nombre:'Luna Fernández, Blanca',dni:'31004592V',puesto:'Música P.E.S.',toma:'01/09/2024',cese:'',dep:'Arte',tel:'609240223',mov:'609240223',idea:'bferlun592',cuenta:'bferlun592@g.educaand.es',coord:'Sí'},
+ {nombre:'Martín Paredes, Eva María',dni:'14618032Z',puesto:'Biología y Geología P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Ciencias Naturales',tel:'667870447',mov:'667870447',idea:'emarpar032',cuenta:'emarpar032@g.educaand.es',coord:'No'},
+ {nombre:'Millán León, Ángel',dni:'80137722H',puesto:'Tecnología P.E.S.',toma:'01/09/2001',cese:'',dep:'Tecnología',tel:'957836143',mov:'646439238',idea:'amilleo722',cuenta:'amilleo722@g.educaand.es',coord:'Sí'},
+ {nombre:'Morales Jiménez, Alfonso',dni:'30966608Y',puesto:'Tecnología P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Tecnología',tel:'626142436',mov:'626142436',idea:'amorjim608',cuenta:'amorjim608@g.educaand.es',coord:'No'},
+ {nombre:'Nieto Montero, María Lourdes',dni:'30955316F',puesto:'Matemáticas P.E.S.',toma:'01/09/2010',cese:'',dep:'Matemáticas',tel:'616473756',mov:'616473756',idea:'mniemon316',cuenta:'mniemon316@g.educaand.es',coord:'Sí'},
+ {nombre:'Reyes Rodríguez, Celia',dni:'15414499Z',puesto:'Lengua Castellana y Literatura P.E.S.',toma:'01/09/2024',cese:'',dep:'Lengua Castellana y Literatura',tel:'606587049',mov:'606587049',idea:'creyrod499',cuenta:'creyrod499@g.educaand.es',coord:'Sí'},
+ {nombre:'Rodríguez Aguilar, María Dolores',dni:'47005994C',puesto:'Orientación Educativa P.E.S.',toma:'01/09/2021',cese:'',dep:'Orientación',tel:'654829023',mov:'654829023',idea:'mrodagu994',cuenta:'mrodagu994@g.educaand.es',coord:'Sí'},
+ {nombre:'Romero Zalamea, José Manuel',dni:'28725266Z',puesto:'Geografía e Historia P.E.S.',toma:'01/09/2010',cese:'',dep:'Geografía, Historia y Religión',tel:'954808752',mov:'667532327',idea:'jromzal266',cuenta:'jromzal266@g.educaand.es',coord:'Sí'},
+ {nombre:'Ruiz de Santa Quiter García, Alfonsa',dni:'30790051C',puesto:'Tecnología P.E.S.',toma:'01/09/2026',cese:'31/08/2027',dep:'Tecnología',tel:'644437129',mov:'644437129',idea:'aruigar051',cuenta:'aruigar051@g.educaand.es',coord:'No'},
+ {nombre:'Valenzuela Torres, María Beatriz',dni:'30809848Z',puesto:'Inglés P.E.S.',toma:'01/09/2026',cese:'',dep:'Idiomas',tel:'687936506',mov:'687936506',idea:'mvaltor848',cuenta:'mvaltor848@g.educaand.es',coord:'No'}
+];
 
 /* ================= Firebase: configuración ================= */
 const FIREBASE_CONFIG={apiKey:'AIzaSyAZrgrH46VBv56E9i8MUzwtxyoQf8t7He0',authDomain:'iesvdv-96a18.firebaseapp.com',databaseURL:'https://iesvdv-96a18-default-rtdb.europe-west1.firebasedatabase.app',projectId:'iesvdv-96a18',storageBucket:'iesvdv-96a18.firebasestorage.app',messagingSenderId:'526669274609',appId:'1:526669274609:web:4211567f3f18e7c7467850',measurementId:'G-M66YPX21W5'};
@@ -687,7 +701,7 @@ try{
    para no interferir con otras apps del centro que comparten la misma base.  */
 const NS='reservaEspacios/';
 const CPATH=sub=>'cursos/'+(S.cursoSel||'-')+'/'+sub; // rutas de datos dentro del curso abierto
-function defaults(){return {v:3,settings:{centro:'',weekend:false},tramos:[],spaces:[],teachers:[],bookings:[],cursos:{},cursoSel:null,cursoActual:'',ocupaciones:{},ocuMeta:{},ports:[],lapcfg:[],cars:[],unidades:[]}}
+function defaults(){return {v:3,settings:{centro:'',weekend:false},tramos:[],spaces:[],teachers:cl(SEED_TEACHERS),bookings:[],cursos:{},cursoSel:null,cursoActual:'',ocupaciones:{},ocuMeta:{},ports:[],lapcfg:[],cars:[],unidades:[]}}
 let S=defaults();
 let ME=null;       // usuario con sesión iniciada
 let SYNC_ON=false; // escucha en tiempo real activa
@@ -844,15 +858,16 @@ function toObj(list){const o={};list.forEach(x=>{o[x.id||x.uid]=x});return o}
 async function seedIfEmpty(){
   const snap=await db.ref(NS).get();
   const v=snap.val();
-  if(v&&v.usuarios&&Object.keys(v.usuarios).length)return null;
-  // Primera ejecución: crear la cuenta de administración (con una contraseña generada al
-  // azar en este momento: no existe ninguna credencial fijada en el código), los espacios
-  // y los tramos, y (si existen) migrar reservas locales de la versión anterior.
-  // El profesorado se crea después desde la vista «Profesorado» (Importar Excel de Séneca);
-  // su contraseña inicial es su propio usuario IdEA.
-  const adminPass='adm-'+uid()+uid();
+  if(v&&v.usuarios&&Object.keys(v.usuarios).length)return;
+  // Primera ejecución: crear cuentas, espacios, tramos y (si existen) migrar reservas locales de la versión anterior
   const users={};
-  users.admin={uid:'admin',nombre:'Administrador',dni:'',puesto:'Gestión',toma:'',cese:'',dep:'Dirección',tel:'',mov:'',idea:'admin',cuenta:'',coord:'No',rol:'admin',activo:true,passHash:await hashPassword(adminPass),creado:Date.now()};
+  users.admin={uid:'admin',nombre:'Administrador',dni:'',puesto:'Gestión',toma:'',cese:'',dep:'Dirección',tel:'',mov:'',idea:'admin',cuenta:'admin@iesvdv.es',coord:'No',rol:'admin',activo:true,passHash:await hashPassword('admin123'),creado:Date.now()};
+  for(const t of SEED_TEACHERS){
+    const u=cl(t);u.uid='u-'+(t.idea||('x'+Math.abs(hashStr(t.dni||t.nombre))));
+    u.rol='usuario';u.activo=true;u.creado=Date.now();
+    u.passHash=await hashPassword(String(t.dni||'ies2025').toUpperCase()||'ies2025');
+    users[u.uid]=u;
+  }
   const upd={config:{centro:'',weekend:false},tramos:cl(DEFAULT_TRAMOS),espacios:toObj(DEFAULT_SPACES),usuarios:users};
   try{
     const old=JSON.parse(localStorage.getItem('reserva_espacios_ies_v1'));
@@ -866,7 +881,6 @@ async function seedIfEmpty(){
     }
   }catch(e){}
   await db.ref(NS).update(upd);
-  return adminPass;
 }
 
 /* ---- Migración única: mover espacios/tramos/reservas de la raíz a un curso escolar ---- */
@@ -884,47 +898,6 @@ async function migrateCourses(){
   if(hay)upd['legado_pre_cursos']=Object.assign({fecha:new Date().toISOString()},legacy);
   upd['espacios']=null;upd['tramos']=null;upd['reservas']=null;
   await db.ref(NS).update(upd);
-}
-
-/* ---- Migración única: la contraseña inicial del profesorado pasa de ser el DNI con letra
-   a ser el propio usuario IdEA de cada cuenta (coincide con lo indicado en la pantalla de
-   acceso). Solo se restablecen las cuentas que conservan sin cambiar su contraseña inicial
-   basada en el DNI; las contraseñas que cada persona haya personalizado se respetan. ---- */
-async function migratePassToIdea(){
-  const v=(await db.ref(NS).get()).val()||{};
-  if(!v.usuarios||!Object.keys(v.usuarios).length)return;
-  if(v.config&&v.config.migradoPassIdea)return;
-  const tr=await db.ref(NS+'config/migradoPassIdea').transaction(cur=>cur==null?Date.now():undefined);
-  if(!tr||!tr.committed)return;
-  const upd={};
-  for(const u of Object.values(v.usuarios)){
-    if(!u||u.rol==='admin'||!u.uid)continue;
-    const idea=normIdea(u.idea);
-    if(!idea)continue;
-    const hDni=await hashPassword(String(u.dni||'').toUpperCase());
-    if(String(u.passHash||'')===hDni)upd['usuarios/'+u.uid+'/passHash']=await hashPassword(idea);
-  }
-  if(Object.keys(upd).length)await db.ref(NS).update(upd);
-}
-
-/* ---- Migración única: limpia el usuario IdEA guardado de cada cuenta (minúsculas,
-   sin el dominio @g.educaand.es y sin caracteres no válidos). Repara cuentas importadas
-   con el campo IdEA «en bruto», que no podían iniciar sesión aunque su contraseña fuese
-   correcta. Se ejecuta ANTES que migratePassToIdea para que las contraseñas iniciales
-   se calculen sobre el IdEA limpio. No toca contraseñas. ---- */
-async function migrateIdeaNorm(){
-  const v=(await db.ref(NS).get()).val()||{};
-  if(!v.usuarios||!Object.keys(v.usuarios).length)return;
-  if(v.config&&v.config.migradoIdeaNorm)return;
-  const tr=await db.ref(NS+'config/migradoIdeaNorm').transaction(cur=>cur==null?Date.now():undefined);
-  if(!tr||!tr.committed)return;
-  const upd={};
-  for(const u of Object.values(v.usuarios)){
-    if(!u||!u.uid)continue;
-    const clean=normIdea(u.idea||'');
-    if(clean&&clean!==String(u.idea||''))upd['usuarios/'+u.uid+'/idea']=clean;
-  }
-  if(Object.keys(upd).length)await db.ref(NS).update(upd);
 }
 
 function startSync(){
@@ -947,7 +920,7 @@ async function loginSubmit(ev){
   ev.preventDefault();
   const errBox=$('#login-err');errBox.classList.remove('on');
   const raw=cleanTxt($('#login-user').value).toLowerCase();
-  const idf=normIdea(raw); // tolera mayúsculas, acentos, espacios y el dominio @g.educaand.es pegado
+  const idf=raw.indexOf('@')>=0?raw.split('@')[0]:raw; // si pegan el correo completo, se elimina el dominio
   const pw=String($('#login-pass').value||'');
   if(!idf||!pw){loginError('Introduce tu usuario IdEA y la contraseña.');return}
   if(!DB_OK){loginError('Sin conexión con la base de datos. Recarga la página.');return}
@@ -957,8 +930,7 @@ async function loginSubmit(ev){
     const users=snap.val()||{};
     const rec=Object.values(users).find(u=>u&&String(u.idea||'').toLowerCase()===idf);
     if(!rec){loginError('No existe ninguna cuenta con ese usuario IdEA. Escribe solo el usuario, sin @g.educaand.es.');return}
-    let h=await hashPassword(pw);
-    if(String(rec.passHash||'')!==h)h=await hashPassword(pw.toLowerCase());
+    const h=await hashPassword(pw);
     if(String(rec.passHash||'')!==h){loginError('La contraseña no es correcta.');return}
     if(rec.activo===false){loginError('Tu cuenta está bloqueada. Consulta al administrador del centro.');return}
     if(!isActivo(rec)){loginError('Tu cuenta consta como cesada ('+String(rec.cese||'fecha')+'). Consulta al administrador.');return}
@@ -982,7 +954,6 @@ function enterApp(){
   refreshAdminUI();
   updateBrand();refreshNav();
   go('hoy');
-  maybeWarnDefaultPass();
 }
 function doLogout(){try{localStorage.removeItem(SES)}catch(e){}location.reload()}
 function refreshAdminUI(){
@@ -1012,42 +983,12 @@ function changeMyPassword(){
     const old=$('#cp-old').value,n1=$('#cp-new').value,n2=$('#cp-new2').value;
     if(!n1||n1.length<4){err('La contraseña nueva debe tener al menos 4 caracteres.');return}
     if(n1!==n2){err('Las contraseñas nuevas no coinciden.');return}
-    let hOld=await hashPassword(old);
-    if(hOld!==String(ME.passHash||''))hOld=await hashPassword(old.toLowerCase());
+    const hOld=await hashPassword(old);
     if(hOld!==String(ME.passHash||'')){err('La contraseña actual no es correcta.');return}
     ME.passHash=await hashPassword(n1);
     try{await dbUpd('usuarios/'+ME.uid,{passHash:ME.passHash})}catch(e){}
-    if(isAdmin()){try{await db.ref(NS+'config/avisoPassAdmin').set(Date.now())}catch(e){}}
     closeModal();toast('Contraseña actualizada');
   };
-}
-
-/* ================= Primer arranque y avisos de seguridad ================= */
-/* Primer arranque: la cuenta de administración se crea con una contraseña generada al
-   azar en ese momento (no hay credenciales fijas en el código). La contraseña se
-   muestra una única vez, a quien realice el primer arranque, para que la guarde. */
-function showAdminFirstRun(pass){
-  openModal('<div class="mhead"><h3>Cuenta de administración creada</h3><button class="btn icon ghost" onclick="closeModal()">'+ic('x')+'</button></div>'
-   +'<p style="margin-top:0">Es el primer arranque de la aplicación: se ha creado la cuenta de gestión con una <b>contraseña generada al azar ahora mismo</b>. <b>Guárdala</b>: solo se mostrará <b>esta vez</b> y no queda registrada en ningún otro sitio.</p>'
-   +'<div class="fld"><label class="f">Usuario</label><input class="inp" readonly value="admin" onclick="this.select()"></div>'
-   +'<div class="fld"><label class="f">Contraseña generada</label><input class="inp" readonly value="'+esc(pass)+'" onclick="this.select()"></div>'
-   +'<p class="mut small">Entra con ella y cámbiala desde el icono de la llave. Después crea o importa el profesorado desde la vista <b>Profesorado</b> (Importar Excel de Séneca): cada docente accederá con su <b>usuario IdEA</b>, que además es su contraseña inicial.</p>'
-   +'<div class="mfoot"><button class="btn" id="fr-copy">Copiar contraseña</button><button class="btn pri" onclick="closeModal()">La he guardado</button></div>');
-  $('#fr-copy').onclick=()=>{try{navigator.clipboard&&navigator.clipboard.writeText(pass).then(()=>toast('Contraseña copiada')).catch(()=>{})}catch(e){}};
-}
-/* Aviso puntual a administración: en versiones anteriores la pantalla de acceso mostraba
-   el usuario y la contraseña de administración. Se recomienda cambiarla si sigue siendo
-   la de la primera instalación. El aviso desaparece al cambiarla o al descartarlo. */
-async function maybeWarnDefaultPass(){
-  if(!isAdmin())return;
-  let visto=false;
-  try{visto=!!(await db.ref(NS+'config/avisoPassAdmin').get()).val()}catch(e){return}
-  if(visto)return;
-  openModal('<div class="mhead"><h3>Revisa la contraseña de administración</h3><button class="btn icon ghost" onclick="closeModal()">'+ic('x')+'</button></div>'
-   +'<p style="margin-top:0">Esta versión ha eliminado del código todas las credenciales fijas (la pantalla de acceso anterior mostraba el usuario y la contraseña de administración). Por seguridad, <b>si tu contraseña sigue siendo la de la primera instalación, cámbiala ahora</b>.</p>'
-   +'<div class="mfoot"><button class="btn" id="wp-after">Ya la he cambiado</button><button class="btn pri" id="wp-now">Cambiarla ahora</button></div>');
-  $('#wp-now').onclick=()=>{closeModal();changeMyPassword()};
-  $('#wp-after').onclick=async()=>{closeModal();try{await db.ref(NS+'config/avisoPassAdmin').set(Date.now())}catch(e){}};
 }
 
 /* ================= Toast / Modal / Confirmación ================= */
@@ -1267,7 +1208,7 @@ function paintSemana(){
   const cols='140px repeat('+nd+',minmax(150px,1fr))';
   let h='<div class="cal" style="grid-template-columns:'+cols+';min-width:'+(140+nd*150)+'px">';
   h+='<div class="h cl" style="text-align:left">Horario</div>';
-  for(const iso of days){const d=dparse(iso);h+='<div class="h'+(iso===todayISO()?' today':'')+'">'+DIAS3[dow1(iso)%7]+' '+d.getDate()+'<small>'+MESP[d.getMonth()]+'</small></div>'}
+  for(const iso of days){const d=dparse(iso);h+='<div class="h'+(iso===todayISO()?' today':'')+'">'+DIAS3[dow1(iso)]+' '+d.getDate()+'<small>'+MESP[d.getMonth()]+'</small></div>'}
   for(const tr of S.tramos){
     const rec=/recreo/i.test(tr.label);
     h+='<div class="hl cl'+(rec?' rec':'')+'"><b>'+esc(tr.label)+'</b><small>'+esc(tr.ini)+'–'+esc(tr.fin)+'</small>'+(tr.res?'':'<span class="tag">no reservable</span>')+'</div>';
@@ -1310,7 +1251,7 @@ function paintDia(){
 /* ================= Listado de espacios reservados ================= */
 let LF={space:'',teacher:'',from:'',to:'',q:'',mine:null};
 render.reservas=function(){
-  if(!S.cursoSel){$('#view-reservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-reservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   if(LF.mine===null)LF.mine=!isAdmin();
   const spOpts='<option value="">Todos los espacios</option>'+S.spaces.map(s=>'<option value="'+esc(s.id)+'"'+(LF.space===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('');
   const prSel=isAdmin()?('<select class="inp" id="lf-prof" style="width:auto;max-width:220px"><option value="">Todo el profesorado</option>'+S.teachers.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(t=>'<option value="'+esc(t.dni)+'"'+(LF.teacher===t.dni?' selected':'')+'>'+esc(t.nombre)+'</option>').join('')+'</select>'):'';
@@ -1357,7 +1298,7 @@ function updateListBody(){
     const past=b.date<todayISO();
     const can=canEditBooking(b);
     return '<tr'+(past?' class="past"':'')+'>'
-      +'<td><b>'+fmtCorto(b.date)+'</b><br><small class="mut">'+DIAS[dow1(b.date)%7]+'</small></td>'
+      +'<td><b>'+fmtCorto(b.date)+'</b><br><small class="mut">'+DIAS[dow1(b.date)]+'</small></td>'
       +'<td>'+esc(slotsLabel(b))+'</td>'
       +'<td>'+esc(sp?sp.name:'(espacio eliminado)')+'</td>'
       +'<td>'+esc(bProfName(b))+'</td>'
@@ -1373,7 +1314,7 @@ function exportCSV(){
   const lines=r.map(b=>{
     const sp=spaceById(b.spaceId),p=teacherByDni(b.teacherDni);
     const slots=b.slots.map(id=>{const t=tramoById(id);return t?tramoFull(id):id}).join(' | ');
-    return [fmtCorto(b.date),DIAS[dow1(b.date)%7],slots,sp?sp.name:'',sp?sp.code:'',bProfName(b),p?p.dni:(b.teacherDni||''),p?p.dep:'',b.actividad||'',b.notas||'']
+    return [fmtCorto(b.date),DIAS[dow1(b.date)],slots,sp?sp.name:'',sp?sp.code:'',bProfName(b),p?p.dni:(b.teacherDni||''),p?p.dep:'',b.actividad||'',b.notas||'']
       .map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';');
   });
   downloadFile('reservas_espacios_'+todayISO()+'.csv',new Blob(['\ufeff'+head.join(';')+'\r\n'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
@@ -1431,8 +1372,8 @@ function infRows(){
     if(a.date!==b.date)return a.date<b.date?-1:1;
     const ia=ini0(a),ib=ini0(b);
     if(ia!==ib)return ia<ib?-1:1;
-    if(!es)return (+a.carro||0)-(+b.carro||0); /* los carros se ordenan por número: el 2 antes que el 10 */
-    const la=(spaceById(a.spaceId)||{}).name||'',lb=(spaceById(b.spaceId)||{}).name||'';
+    const la=es?((spaceById(a.spaceId)||{}).name||''):+a.carro;
+    const lb=es?((spaceById(b.spaceId)||{}).name||''):+b.carro;
     return String(la).localeCompare(String(lb),'es');
   });
   return rows;
@@ -1635,9 +1576,9 @@ render.informes=function(){
    +'</div>';
   $('#inf-k-esp').onclick=()=>{if(INF.kind!=='espacios'){INF.kind='espacios';INF.aula=false;INF.aulas=[];render.informes()}};
   $('#inf-k-pt').onclick=()=>{if(INF.kind!=='portatiles'){INF.kind='portatiles';INF.aula=false;INF.aulas=[];render.informes()}};
-  $('#inf-prof-t').onchange=e=>{INF.prof=e.target.checked;$('#inf-prof-box').hidden=!INF.prof;$('#inf-prof-all').style.display=INF.prof?'inline-flex':'none';infPaint();};
-  $('#inf-aula-t').onchange=e=>{INF.aula=e.target.checked;$('#inf-aula-box').hidden=!INF.aula;$('#inf-aula-all').style.display=INF.aula?'inline-flex':'none';infPaint();};
-  $('#inf-per-t').onchange=e=>{INF.per=e.target.checked;$('#inf-per-box').hidden=!INF.per;infPaint();};
+  $('#inf-prof-t').onchange=e=>{INF.prof=e.target.checked;$('#inf-prof-box').hidden=!INF.prof;$('#inf-prof-all').style.display=INF.prof?'inline-flex':'none';if(INF.prof)infPaint();};
+  $('#inf-aula-t').onchange=e=>{INF.aula=e.target.checked;$('#inf-aula-box').hidden=!INF.aula;$('#inf-aula-all').style.display=INF.aula?'inline-flex':'none';if(INF.aula)infPaint();};
+  $('#inf-per-t').onchange=e=>{INF.per=e.target.checked;$('#inf-per-box').hidden=!INF.per;if(INF.per)infPaint();};
   $('#inf-pq').oninput=e=>{INF_Q=e.target.value;$('#inf-prof-grid').innerHTML=infTeacherGrid()};
   $('#inf-prof-grid').addEventListener('change',e=>{const d=e.target.dataset&&e.target.dataset.dni;if(!d)return;if(e.target.checked){if(INF.profs.indexOf(d)<0)INF.profs.push(d)}else INF.profs=INF.profs.filter(x=>x!==d);infPaint()});
   $('#inf-aula-grid').addEventListener('change',e=>{const d=e.target.dataset&&e.target.dataset.loc;if(!d)return;if(e.target.checked){if(INF.aulas.indexOf(d)<0)INF.aulas.push(d)}else INF.aulas=INF.aulas.filter(x=>String(x)!==String(d));infPaint()});
@@ -1653,7 +1594,7 @@ render.informes=function(){
   $('#inf-ph').onclick=()=>{INF.perMode='dia';INF.dia=todayISO();infSyncPer();infPaint()};
   $('#inf-ps').onclick=()=>{INF.perMode='rango';INF.from=diso(monday(new Date()));INF.to=diso(addDays(monday(new Date()),6));infSyncPer();infPaint()};
   $('#inf-pmes').onclick=()=>{const a=new Date();a.setDate(1);const b=new Date();b.setMonth(b.getMonth()+1,0);INF.perMode='rango';INF.from=diso(a);INF.to=diso(b);infSyncPer();infPaint()};
-  $('#inf-pc').onclick=()=>{const sy=cursoAnios();INF.perMode='rango';INF.from=sy[0]+'-09-01';INF.to=finCursoISO();infSyncPer();infPaint()};
+  $('#inf-pc').onclick=()=>{const sy=schoolYearName().split('-');INF.perMode='rango';INF.from=sy[0]+'-09-01';INF.to=finCursoISO();infSyncPer();infPaint()};
   $('#inf-x-csv').onclick=infExportCSV;
   $('#inf-x-xls').onclick=infExportXLSX;
   $('#inf-x-pdf').onclick=infExportPDF;
@@ -1674,7 +1615,7 @@ function profBodyHtml(){
    +'</div>'
    +'<div class="tblwrap"><table class="tbl"><thead><tr><th>Usuario/a</th><th>DNI</th><th>Departamento</th><th>Usuario IdEA</th><th>Rol</th><th>Estado</th><th style="width:92px"></th></tr></thead><tbody id="prof-body"></tbody></table></div>'
    +'<div class="mut small" id="prof-count" style="margin-top:8px"></div>'
-   +'<p class="mut small">Cada persona inicia sesión con su <b>usuario IdEA</b>, sin el dominio <b>@g.educaand.es</b>. Los <b>administradores</b> gestionan usuarios, espacios, cursos y ajustes; el resto del profesorado consulta el calendario y hace reservas a su nombre. La contraseña inicial del profesorado importado es su <b>usuario IdEA</b> (la misma que su usuario de acceso); cada uno puede cambiarla desde su menú (icono de llave arriba). Las cuentas son <b>comunes a todos los cursos escolares</b>. Con <b>Importar Excel</b> se actualizan altas, bajas y datos desde el RelPerCen.xls de Séneca.</p>';
+   +'<p class="mut small">Cada persona inicia sesión con su <b>usuario IdEA</b>, sin el dominio <b>@g.educaand.es</b>. Los <b>administradores</b> gestionan usuarios, espacios, cursos y ajustes; el resto del profesorado consulta el calendario y hace reservas a su nombre. La contraseña inicial del profesorado importado es su <b>DNI con letra</b>; cada uno puede cambiarla desde su menú (icono de llave arriba). Las cuentas son <b>comunes a todos los cursos escolares</b>. Con <b>Importar Excel</b> se actualizan altas, bajas y datos desde el RelPerCen.xls de Séneca.</p>';
 }
 function profBind(){
   $('#pf-q').oninput=e=>{PROF_Q=e.target.value;updateProfBody()};
@@ -1741,13 +1682,12 @@ function openUserModal(idU){
     const err=m=>{$('#u-err').innerHTML='<div class="errbox">'+esc(m)+'</div>'};
     const nombre=cleanTxt($('#u-nombre').value);
     const dni=cleanTxt($('#u-dni').value).toUpperCase();
-    const idea=normIdea($('#u-idea').value);
+    const idea=normTxt($('#u-idea').value).replace(/[^a-z0-9._-]/g,'');
     const cuenta=cleanTxt($('#u-cuenta').value).toLowerCase();
     const pass=$('#u-pass').value;
     if(!nombre){err('El nombre es obligatorio.');return}
-    if(nuevo&&!pass){err('Indica una contraseña inicial (por ejemplo, su usuario IdEA).');return}
-    if(yo&&!idea){err('Tu propia cuenta necesita un usuario IdEA: sin él no podrías volver a iniciar sesión.');return}
-    const dup=S.teachers.find(x=>(!u||x.uid!==u.uid)&&((idea&&normIdea(x.idea)===idea)||(cuenta&&String(x.cuenta||'').toLowerCase()===cuenta)));
+    if(nuevo&&!pass){err('Indica una contraseña inicial (por ejemplo, el DNI con letra).');return}
+    const dup=S.teachers.find(x=>(!u||x.uid!==u.uid)&&((idea&&normTxt(x.idea||'')===idea)||(cuenta&&String(x.cuenta||'').toLowerCase()===cuenta)));
     if(dup){err('Ese usuario IdEA o correo ya lo usa: '+dup.nombre);return}
     const rec={uid:u?u.uid:'',nombre:nombre,dni:dni,puesto:cleanTxt($('#u-puesto').value),toma:u?(u.toma||''):'',cese:cleanTxt($('#u-cese').value),dep:cleanTxt($('#u-dep').value),tel:fixPhone($('#u-tel').value),mov:fixPhone($('#u-mov').value),idea:idea,cuenta:cuenta,coord:u?(u.coord||'No'):'No',rol:(!yo&&$('#u-rol').value==='admin')?'admin':'usuario',activo:$('#u-activo').checked};
     if(yo)rec.rol='admin';
@@ -1757,13 +1697,15 @@ function openUserModal(idU){
       rec.uid=uidF;rec.creado=Date.now();
       rec.passHash=await hashPassword(pass);
       S.teachers.push(rec);
-      try{await dbSet('usuarios/'+rec.uid,rec);toast('Usuario creado')}catch(e){} /* el éxito solo se anuncia si Firebase lo ha guardado */
+      try{await dbSet('usuarios/'+rec.uid,rec)}catch(e){}
+      toast('Usuario creado');
     }else{
       Object.assign(u,rec);
       const upd=Object.assign({},rec);
       if(pass){u.passHash=await hashPassword(pass);upd.passHash=u.passHash}
-      try{await dbUpd('usuarios/'+u.uid,upd);toast('Usuario actualizado')}catch(e){} /* el éxito solo se anuncia si Firebase lo ha guardado */
+      try{await dbUpd('usuarios/'+u.uid,upd)}catch(e){}
       if(yo)ME=u;
+      toast('Usuario actualizado');
     }
     closeModal();refreshNav();updateProfBody();
   };
@@ -1806,8 +1748,7 @@ function parseTeacherRows(rows){
     const nombre=get('nombre'),dni=get('dni').toUpperCase();
     if(!nombre&&!dni)continue;
     if(dni&&seen.has(dni))continue;if(dni)seen.add(dni);
-if(!dni){const nk='n:'+normTxt(nombre);if(seen.has(nk))continue;seen.add(nk)} /* filas sin DNI repetidas: una sola cuenta */
-    out.push({nombre:nombre,dni:dni,puesto:get('puesto'),toma:get('toma'),cese:get('cese'),dep:get('dep'),tel:fixPhone(get('tel')),mov:fixPhone(get('mov')),idea:normIdea(get('idea')),cuenta:get('cuenta'),coord:/^s/i.test(get('coord'))?'Sí':'No'});
+    out.push({nombre:nombre,dni:dni,puesto:get('puesto'),toma:get('toma'),cese:get('cese'),dep:get('dep'),tel:fixPhone(get('tel')),mov:fixPhone(get('mov')),idea:get('idea'),cuenta:get('cuenta'),coord:/^s/i.test(get('coord'))?'Sí':'No'});
   }
   return out;
 }
@@ -1844,52 +1785,41 @@ function showImportPreview(list){
    +'<p style="margin-top:0">Se han detectado <b>'+list.length+'</b> ficha'+(list.length===1?'':'s')+' ('+act+' activa'+(act===1?'':'s')+'). Se creará o actualizará una cuenta por <b>DNI</b>. Vista previa'+(list.length>8?' (primeras 8)':'')+':</p>'
    +'<div class="tblwrap" style="max-height:220px;overflow:auto"><table class="tbl"><thead><tr><th>Nombre</th><th>DNI</th><th>Depto.</th><th>Cese</th></tr></thead><tbody>'+prev+'</tbody></table></div>'
    +'<div class="fld" style="margin-top:14px"><label class="f">Contraseña inicial de los usuarios nuevos</label>'
-   +'<div class="slots"><label class="chk"><input type="radio" name="pw0" value="idea" checked> Su usuario IdEA (igual que su usuario de acceso)</label>'
-   +'<label class="chk"><input type="radio" name="pw0" value="comun"> Contraseña común: <input class="inp" id="pw0-txt" placeholder="elige una" style="width:110px;padding:3px 7px;margin-left:4px"></label></div></div>'
+   +'<div class="slots"><label class="chk"><input type="radio" name="pw0" value="dni" checked> Su DNI (con letra)</label>'
+   +'<label class="chk"><input type="radio" name="pw0" value="comun"> Contraseña común: <input class="inp" id="pw0-txt" value="ies2025" style="width:110px;padding:3px 7px;margin-left:4px"></label></div></div>'
    +'<div class="fld"><label class="f">Modo de importación</label>'
    +'<div class="slots"><label class="chk"><input type="radio" name="imp" value="upd" checked> Actualizar y crear (recomendado)</label>'
    +'<label class="chk"><input type="radio" name="imp" value="rep"> Sustituir plantilla <small>(elimina usuarios que no estén en el archivo)</small></label></div></div>'
    +'<div class="mfoot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn pri" id="imp-ok">Importar '+list.length+' usuario'+(list.length===1?'':'s')+'</button></div>');
-  const ptxt=$('#pw0-txt');
-  if(ptxt)ptxt.onfocus=()=>{const r=$('#modal-root input[name="pw0"][value="comun"]');if(r&&!r.checked)r.checked=true}; /* escribir la contraseña común debe activar su opción */
   $('#imp-ok').onclick=()=>{
     const r=$('#modal-root input[name="imp"]:checked'),p=$('#modal-root input[name="pw0"]:checked');
-    const pwMode=p?p.value:'idea';
-    const pwComun=$('#pw0-txt')?cleanTxt($('#pw0-txt').value):'';
-    if(pwMode==='comun'&&!pwComun){toast('Escribe la contraseña común para las cuentas nuevas','err');return}
-    applyImport(list,r?r.value:'upd',pwMode,pwComun);
+    applyImport(list,r?r.value:'upd',p?p.value:'dni',$('#pw0-txt')?cleanTxt($('#pw0-txt').value):'ies2025');
   };
 }
 async function applyImport(list,mode,pwMode,pwComun){
-  /* Contraseña inicial de cada cuenta nueva: por defecto, su propio usuario IdEA.
-     Si falta el usuario IdEA, se asigna una aleatoria (la cuenta no será accesible
-     hasta que administración le fije un usuario IdEA y una contraseña). */
-  const pwFor=t=>pwMode==='comun'?(String(pwComun||'')||uid()):(normIdea(t.idea)||uid());
+  const pwFor=t=>pwMode==='comun'?(pwComun||'ies2025'):String(t.dni||'ies2025').toUpperCase();
   const exByDni={};S.teachers.forEach(x=>{if(x.dni)exByDni[x.dni]=x});
-  const exByIdea={};S.teachers.forEach(x=>{const i=normIdea(x.idea);if(i&&!exByIdea[i])exByIdea[i]=x}); /* filas sin DNI: se emparejan por IdEA para no duplicar cuentas */
   let nuevos=0,actual=0;
   try{
     if(mode==='rep'){
       const keep=new Set(list.map(t=>t.dni).filter(Boolean));
-      const keepIdea=new Set(list.map(t=>t.dni?'':normIdea(t.idea)).filter(Boolean));
-      const removed=S.teachers.filter(x=>x.rol!=='admin'&&!(x.dni&&keep.has(x.dni))&&!(normIdea(x.idea)&&keepIdea.has(normIdea(x.idea))));
+      const removed=S.teachers.filter(x=>x.rol!=='admin'&&!(x.dni&&keep.has(x.dni)));
       for(const x of removed){await dbDel('usuarios/'+x.uid)}
-      S.teachers=S.teachers.filter(x=>x.rol==='admin'||(x.dni&&keep.has(x.dni))||(normIdea(x.idea)&&keepIdea.has(normIdea(x.idea))));
+      S.teachers=S.teachers.filter(x=>x.rol==='admin'||(x.dni&&keep.has(x.dni)));
     }
     for(const t of list){
-      let ex=t.dni?exByDni[t.dni]:null;
-      if(!ex&&normIdea(t.idea))ex=exByIdea[normIdea(t.idea)]||null;
+      const ex=t.dni?exByDni[t.dni]:null;
       if(ex){
-const upd={nombre:t.nombre,dni:(t.dni||ex.dni||''),puesto:t.puesto,toma:t.toma,cese:t.cese,dep:t.dep,tel:t.tel,mov:t.mov,idea:(t.idea||ex.idea||''),cuenta:t.cuenta,coord:t.coord}; // sin IdEA en el fichero: se conserva el que ya había (y se corrige el DNI si cambió)
+        const upd={nombre:t.nombre,puesto:t.puesto,toma:t.toma,cese:t.cese,dep:t.dep,tel:t.tel,mov:t.mov,idea:t.idea,cuenta:t.cuenta,coord:t.coord};
         Object.assign(ex,upd);await dbUpd('usuarios/'+ex.uid,upd);actual++;
       }else{
         const u=cl(t);
-        const idea=normIdea(t.idea);
+        const idea=normTxt(t.idea||'').replace(/[^a-z0-9._-]/g,'');
         const base='u-'+(idea||('x'+Math.abs(hashStr(t.dni||t.nombre))));
         let uidF=base,i=2;while(S.teachers.find(x=>x.uid===uidF))uidF=base+'-'+(i++);
-        u.uid=uidF;u.idea=idea;u.rol='usuario';u.activo=true;u.creado=Date.now();
+        u.uid=uidF;u.rol='usuario';u.activo=true;u.creado=Date.now();
         u.passHash=await hashPassword(pwFor(t));
-        S.teachers.push(u);if(u.dni)exByDni[u.dni]=u;if(idea)exByIdea[idea]=u;
+        S.teachers.push(u);if(u.dni)exByDni[u.dni]=u;
         await dbSet('usuarios/'+u.uid,u);nuevos++;
       }
     }
@@ -2108,7 +2038,7 @@ function occForDow(dow,spaceId,tramoId){
   return (d&&d[tramoId])?String(d[tramoId]):'';
 }
 render.horarios=function(){
-  if(!S.cursoSel){$('#view-horarios').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto. La ocupación GHC se guarda dentro de cada curso.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-horarios').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto. La ocupación GHC se guarda dentro de cada curso.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   $('#view-horarios').innerHTML=
    '<div class="card">'
    +'<div class="card-h"><h2>Importar horarios de GHC</h2><button class="btn pri" id="ghc-pick">'+ic('ul',15)+' Elegir ficheros…</button></div>'
@@ -2157,8 +2087,8 @@ async function ghcReadFiles(files){
       else{
         const t=normTxt(item.res.titulo);
         const byName=S.spaces.find(s=>t&&normTxt(s.name)===t);
-        if(byName){item.spaceId=byName.id;item.res.aviso='El código '+esc(code)+' no coincide con ninguna estancia; se ha preseleccionado por el título del fichero ('+esc(byName.name)+')'}
-        else item.res.aviso='No existe ninguna estancia con el código '+esc(code)+(t?' ni el título «'+esc(item.res.titulo)+'»':'')+': selecciona una de la lista o crea estancias automáticamente';
+        if(byName){item.spaceId=byName.id;item.res.aviso='El código '+code+' no coincide con ninguna estancia; se ha preseleccionado por el título del fichero ('+byName.name+')'}
+        else item.res.aviso='No existe ninguna estancia con el código '+code+(t?' ni el título «'+item.res.titulo+'»':'')+': selecciona una de la lista o crea estancias automáticamente';
       }
     }catch(e){item.err=String(e.message||e)}
   }
@@ -2213,7 +2143,7 @@ async function ghcApply(){
     'Importar',()=>ghcDoImport(items,modo,crear));
 }
 async function ghcDoImport(items,modo,crear){
-  let tramos=cl(S.tramos),bkAfter=null,ptAfter=null,ptChanged=false;
+  let tramos=cl(S.tramos),bkAfter=null;
   if(modo==='sust'){
     const rec=tramos.filter(t=>/recreo/i.test(t.label));
     tramos=[];
@@ -2234,14 +2164,6 @@ async function ghcDoImport(items,modo,crear){
       const key=t?(t.ini+'-'+t.fin):null;
       return (key&&(byIni[key]||oldByIni[key]))||s;
     }).filter(s=>tramos.some(t=>t.id===s))})).filter(b=>b.slots.length);
-    /* las reservas de portátiles se remapean igual (mismo horario, nueva id) y se eliminan si pierden todos sus tramos */
-    ptAfter=S.ports.map(p=>Object.assign({},p,{tramos:pTramos(p).map(s=>{
-      const t=S.tramos.find(x=>x.id===s)||null;
-      const key=t?(t.ini+'-'+t.fin):null;
-      return (key&&(byIni[key]||oldByIni[key]))||s;
-    }).filter(s=>tramos.some(t=>t.id===s))})).filter(p=>p.tramos.length);
-    const ptById={};ptAfter.forEach(p=>{ptById[p.id]=p});
-    ptChanged=S.ports.some(p=>{const q=ptById[p.id];return !q||q.tramos.join('|')!==pTramos(p).join('|')});
   }
   let nuevosTramos=0;
   for(const it of items){
@@ -2268,7 +2190,6 @@ async function ghcDoImport(items,modo,crear){
     S.tramos=tramos;
     try{await dbSet(CPATH('tramos'),tramos)}catch(e){}
     if(bkAfter){S.bookings=bkAfter;try{await dbSet(CPATH('reservas'),toObj(bkAfter))}catch(e){}}
-    if(ptAfter&&ptChanged){S.ports=ptAfter;try{await dbSet(CPATH('portatiles'),toObj(ptAfter))}catch(e){}}
   }
   // escribir ocupaciones (sustituye la estancia completa) en tiempo real
   let okN=0;
@@ -2376,7 +2297,6 @@ function spaceDelId(id){
 
 /* ================= Ajustes (acordeones; solo uno abierto) ================= */
 let AJ_OPEN=null; // id del acordeón abierto (null = todos replegados)
-let TR_DRAFT=null; // copia de trabajo de los tramos: añadir o quitar filas sin «Guardar tramos» no toca el estado real
 function ajToggle(id){
   const el=document.getElementById('acc-'+id);
   const was=el&&el.classList.contains('open');
@@ -2446,7 +2366,7 @@ render.ajustes=function(){
   $('#bk-exp').onclick=()=>{const c=S.cursos[S.cursoSel]||{};downloadFile('copia_reservas_espacios_'+(c.nombre||'curso')+'_'+todayISO()+'.json',new Blob([JSON.stringify({v:3,exportado:todayISO(),curso:{nombre:c.nombre||'',settings:S.settings,espacios:S.spaces,tramos:S.tramos,reservas:S.bookings,ocupaciones:S.ocupaciones||{},ocupacionesMeta:S.ocuMeta||{}}},null,2)],{type:'application/json'}));toast('Copia descargada (curso '+(c.nombre||'—')+')')};
   $('#bk-wipe').onclick=()=>{confirmDlg('Borrar reservas','Se eliminarán <b>todas las reservas</b> del curso abierto ( '+esc(nombreCurso)+' ), para todos los usuarios. El profesorado, los espacios y los demás cursos no se tocarán.','Borrar todo',async()=>{S.bookings=[];try{await dbDel(CPATH('reservas'))}catch(e){}refreshNav();toast('Todas las reservas del curso eliminadas')})};
   $('#bk-old').onclick=()=>{const t=todayISO();const orf=S.bookings.filter(b=>b.date<t);if(!orf.length){toast('No hay reservas de fechas pasadas');return}confirmDlg('Eliminar reservas pasadas','Se eliminarán <b>'+orf.length+'</b> reserva'+(orf.length===1?'':'s')+' de fechas anteriores a hoy (curso '+nombreCurso+').','Eliminar',async()=>{S.bookings=S.bookings.filter(b=>b.date>=t);try{await dbSet(CPATH('reservas'),toObj(S.bookings))}catch(e){}refreshNav();toast('Reservas pasadas eliminadas')})};
-  $('#tr-add').onclick=()=>{TR_DRAFT=TR_DRAFT||cl(S.tramos);TR_DRAFT.push({id:'t-'+uid(),label:'',ini:'08:30',fin:'09:15',res:true});trBody()};
+  $('#tr-add').onclick=()=>{S.tramos.push({id:'t-'+uid(),label:'',ini:'08:30',fin:'09:15',res:true});trBody()};
   $('#tr-save').onclick=saveTramos;
   $('#un-save').onclick=async()=>{
     const av=$$('#un-grid input:checked').map(i=>i.value).filter(g=>GRUPOS.indexOf(g)>=0);
@@ -2485,7 +2405,7 @@ render.ajustes=function(){
   };
   const b=$('#c-add');if(b)b.onclick=()=>cursoModal(null);
   profBind();
-  TR_DRAFT=cl(S.tramos);trBody();ajSpBody();
+  trBody();ajSpBody();
 };
 function ajSpBody(){
   const tb=$('#aj-sp-body');if(!tb)return;
@@ -2505,15 +2425,14 @@ function ajSpDel(id){
   confirmDlg('Eliminar espacio','¿Eliminar <b>'+esc(s.name)+'</b> del curso abierto? El espacio no tiene reservas.','Eliminar',async()=>{S.spaces=S.spaces.filter(x=>x.id!==id);try{await dbDel(CPATH('espacios/'+id))}catch(e){}render.ajustes();toast('Espacio eliminado')});
 }
 function trBody(){
-  TR_DRAFT=TR_DRAFT||cl(S.tramos); /* el editor trabaja sobre el borrador, no sobre el estado real */
-  $('#tr-body').innerHTML=TR_DRAFT.map((t,i)=>'<tr data-i="'+i+'">'
+  $('#tr-body').innerHTML=S.tramos.map((t,i)=>'<tr data-i="'+i+'">'
    +'<td><input class="inp" data-k="label" value="'+esc(t.label)+'" placeholder="Etiqueta"></td>'
    +'<td><input type="time" class="inp" data-k="ini" value="'+esc(t.ini)+'"></td>'
    +'<td><input type="time" class="inp" data-k="fin" value="'+esc(t.fin)+'"></td>'
    +'<td style="text-align:center"><input type="checkbox" data-k="res"'+(t.res?' checked':'')+' style="accent-color:var(--pri)"></td>'
    +'<td class="ra"><button class="btn icon sm" title="Quitar tramo" onclick="trDelRow('+i+')">'+ic('trash',14)+'</button></td></tr>').join('');
 }
-function trDelRow(i){TR_DRAFT=TR_DRAFT||cl(S.tramos);TR_DRAFT.splice(i,1);trBody()}
+function trDelRow(i){S.tramos.splice(i,1);trBody()}
 function saveTramos(){
   const list=[];let ok=true;
   $$('#tr-body tr').forEach(r=>{
@@ -2522,20 +2441,14 @@ function saveTramos(){
     const ini=g('ini').value||'08:30',fin=g('fin').value||'09:15';
     const res=g('res').checked;
     if(!label){ok=false;return}
-    const old=(TR_DRAFT||S.tramos)[+r.dataset.i];
+    const old=S.tramos[+r.dataset.i];
     list.push({id:old?old.id:('t-'+uid()),label:label,ini:ini,fin:fin,res:res});
   });
   if(!ok){toast('Todos los tramos necesitan una etiqueta','err');return}
   const kept=new Set(list.map(t=>t.id));
   const removed=S.tramos.filter(t=>!kept.has(t.id)).map(t=>t.id);
   const affected=S.bookings.filter(b=>b.slots.some(s=>removed.includes(s)));
-  const affectedP=S.ports.filter(p=>pTramos(p).some(s=>removed.includes(s)));
   const doIt=async()=>{S.tramos=list;S.bookings.forEach(b=>{b.slots=b.slots.filter(s=>kept.has(s))});S.bookings=S.bookings.filter(b=>b.slots.length);
-    S.ports.forEach(p=>{p.tramos=pTramos(p).filter(s=>kept.has(s))});S.ports=S.ports.filter(p=>p.tramos.length); /* las reservas de portátiles también pierden los tramos eliminados */
-    /* los payloads se preparan ANTES de cualquier escritura: la primera escritura
-       dispara la sincronización en vivo, que reemplaza S, y leer S.bookings o
-       S.ports después devolvía las reservas recién descargadas, sin podar */
-    const bkObj=affected.length?toObj(S.bookings):null,ptObj=affectedP.length?toObj(S.ports):null;
     // quitar de la ocupación GHC los tramos eliminados
     if(removed.length&&S.ocupaciones){let dirty=false;const occ2={};
       Object.keys(S.ocupaciones).forEach(sid=>{const dd=S.ocupaciones[sid],nd={};
@@ -2543,8 +2456,8 @@ function saveTramos(){
         if(Object.keys(nd).length)occ2[sid]=nd});
       if(dirty){S.ocupaciones=occ2;dbSet(CPATH('ocupaciones'),occ2).catch(()=>{})}
     }
-    try{await dbSet(CPATH('tramos'),list);if(bkObj)await dbSet(CPATH('reservas'),bkObj);if(ptObj)await dbSet(CPATH('portatiles'),ptObj)}catch(e){}render.ajustes();toast('Tramos horarios guardados')};
-  if(affected.length||affectedP.length)confirmDlg('Tramos eliminados','Hay <b>'+affected.length+'</b> reserva'+(affected.length===1?'':'s')+' de espacios'+(affectedP.length?' y <b>'+affectedP.length+'</b> de portátiles':'')+' que usa(n) tramos eliminados: esos tramos se quitarán de dichas reservas (y se borrarán si quedan vacías).','Continuar',doIt);
+    try{await dbSet(CPATH('tramos'),list);if(affected.length)await dbSet(CPATH('reservas'),toObj(S.bookings))}catch(e){}render.ajustes();toast('Tramos horarios guardados')};
+  if(affected.length)confirmDlg('Tramos eliminados','Hay <b>'+affected.length+'</b> reserva'+(affected.length===1?'':'s')+' que usa(n) tramos eliminados: esos tramos se quitarán de dichas reservas (y se borrarán si quedan vacías).','Continuar',doIt);
   else doIt();
 }
 /* ================= Modal de reserva ================= */
@@ -2669,8 +2582,9 @@ function saveBooking(id){
     return;
   }
   if(id){const b=S.bookings.find(x=>x.id===id);if(b)Object.assign(b,nb)}else S.bookings.push(nb);
-  dbSet(CPATH('reservas/'+nb.id),nb).then(()=>{toast('Reserva guardada: '+((spaceById(spaceId)||{}).name||'')+', '+fmtCorto(date))}).catch(()=>{}); /* el éxito solo se anuncia si Firebase lo ha guardado (el error ya avisa solo) */
+  dbSet(CPATH('reservas/'+nb.id),nb).catch(()=>{});
   closeModal();refreshNav();go(CUR);
+  toast('Reserva guardada: '+((spaceById(spaceId)||{}).name||'')+', '+fmtCorto(date));
 }
 function delBookingId(id){
   const b=S.bookings.find(x=>x.id===id);if(!b)return;
@@ -2682,7 +2596,7 @@ function delBookingId(id){
 /* ================= Reserva de portátiles ================= */
 let PT_DATE=null,PT_TRAMOS=[],PT_SEL={carro:null,laptops:[]},PT_GEST=false;
 render.portatiles=function(){
-  if(!S.cursoSel){$('#view-portatiles').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-portatiles').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   if(!S.tramos.length){$('#view-portatiles').innerHTML='<div class="empty">'+ic('clock',22)+'<p>Este curso no tiene tramos horarios definidos.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'ajustes\')">Ir a Ajustes</button>':'')+'</div>';return}
   PT_DATE=(PT_DATE&&PT_DATE>=todayISO())?PT_DATE:todayISO();
   PT_TRAMOS=PT_TRAMOS.filter(id=>tramoById(id));
@@ -2804,7 +2718,7 @@ function paintPtList(){
 let PT_RV='semana';
 const PT_RANGES={dia:['Un día','Solo de hoy en adelante: se muestran las horas que no han pasado',0],semana:['Una semana','Hoy y los próximos 6 días',6],c15:['15 días','Hoy y los próximos 14 días',14],mes:['Próximo mes','Hoy y los próximos 30 días',30]};
 render.ptreservas=function(){
-  if(!S.cursoSel){$('#view-ptreservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-ptreservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   const off=PT_RANGES[PT_RV]?PT_RANGES[PT_RV][2]:6;
   const desde=todayISO(),hasta=diso(addDays(dparse(desde),off));
   const seg=Object.keys(PT_RANGES).map(k=>'<button data-rv="'+k+'"'+(k===PT_RV?' class="on"':'')+' title="'+esc(PT_RANGES[k][1])+'">'+esc(PT_RANGES[k][0])+'</button>').join('');
@@ -2832,7 +2746,7 @@ function paintPtAgenda(desde,hasta){
     const nl=d.items.reduce((n,p)=>n+((p.laptops||[]).length),0);
     const items=d.items.map(p=>{
       const tl=pTramos(p);
-      const enCurso=d.date===hoy&&tl.some(id=>{if(tramoPast(d.date,id))return false;const t=tramoById(id);const i=String((t&&t.ini)||'').trim();return /^\d{1,2}:\d{2}$/.test(i)&&i<=hhmm()}); /* en curso = empezado y sin terminar (el MISMO tramo) */
+      const enCurso=d.date===hoy&&tl.some(id=>!tramoPast(d.date,id))&&tl.some(id=>{const t=tramoById(id);const i=String((t&&t.ini)||'').trim();return /^\d{1,2}:\d{2}$/.test(i)&&i<=hhmm()});
       return '<tr><td style="white-space:nowrap">'+esc(tl.map(tramoLabel).join(', '))+'<br><small class="mut">'+esc(slotRanges(tl).map(r=>r.ini+'–'+r.fin).join(' · '))+'</small></td>'
        +'<td><span class="pt-tag">'+esc(carroName(p.carro))+'</span></td>'
        +'<td><b>'+esc(lapRanges(p.laptops))+'</b> <small class="mut">('+p.laptops.length+')</small></td>'
@@ -2925,10 +2839,11 @@ function openPortConfirm(grupo){
     const nc=c.n,nl=rec.laptops.slice();
     PT_SEL={carro:null,laptops:[]};
     S.ports.push(rec);
-    dbSet(CPATH('portatiles/'+rec.id),rec).then(()=>{toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos))}).catch(()=>{}); /* el éxito solo se anuncia si Firebase lo ha guardado */
+    dbSet(CPATH('portatiles/'+rec.id),rec).catch(()=>{});
     closeModal();
     render.portatiles();
     nl.forEach(l=>{const el=document.querySelector('#carro-'+nc+' .lap[data-l="'+l+'"]');if(el)el.classList.add('just')});
+    toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos));
   };
 }
 /* ================= Nueva reserva de portátiles (modal del botón de la barra superior) =================
@@ -3039,11 +2954,12 @@ function openPtConfirm(c,laps,grupo,notas){
     const rec={id:uid(),date:PTN.date,tramos:PTN.tramos.slice(),tramo:PTN.tramos[0]||'',carro:c.n,laptops:laps.slice(),grupo:grupo,notas:notas,userId:(ME&&ME.uid)||'',teacherDni:(ME&&ME.dni)||'',pnom:(ME&&ME.nombre)||'',creado:Date.now(),creadoPor:(ME&&ME.uid)||''};
     const nc=c.n,nl=rec.laptops.slice();
     S.ports.push(rec);
-    dbSet(CPATH('portatiles/'+rec.id),rec).then(()=>{toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos))}).catch(()=>{}); /* el éxito solo se anuncia si Firebase lo ha guardado */
+    dbSet(CPATH('portatiles/'+rec.id),rec).catch(()=>{});
     closeModal();
     if(CUR==='portatiles'){PT_DATE=PTN.date;PT_TRAMOS=PTN.tramos.slice();PT_SEL={carro:null,laptops:[]};render.portatiles();nl.forEach(l=>{const el=document.querySelector('#carro-'+nc+' .lap[data-l="'+l+'"]');if(el)el.classList.add('just')})}
     else if(CUR==='ptreservas')render.ptreservas();
     else if(render[CUR])render[CUR]();
+    toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos));
   };
 }
 function openPortInfo(list,c,l){
@@ -3084,7 +3000,7 @@ function openLapEdit(carro,num){
     if(i>=0)S.lapcfg[i]=rec;else S.lapcfg.push(rec);
     try{await dbSet(CPATH('portatiles_cfg/'+rec.id),rec)}catch(e){}
     closeModal();paintCarts();
-    toast((rec.rep||rec.ret)?'Portátil '+carroName(carro)+' nº '+num+' marcado como '+(rec.ret?'retirado':'en reparación'):'Datos del portátil '+carroName(carro)+' nº '+num+' actualizados');
+    toast((rec.rep||rec.ret)?'Portátil '+esc(carroName(carro))+' nº '+num+' marcado como '+(rec.ret?'retirado':'en reparación'):'Datos del portátil '+esc(carroName(carro))+' nº '+num+' actualizados');
   };
 }
 /* Traslado de un portátil a otro carro: ocupa el primer número libre del carro de destino
@@ -3224,14 +3140,9 @@ function cursoModal(cid){
         let espacios=[];
         if(modo==='copiar'&&src)espacios=cl(src.spaces);
         else if(modo==='estandar')espacios=cl(DEFAULT_SPACES);
-        const ahora=Date.now();
-        const cid2='c-'+ahora.toString(36)+Math.random().toString(36).slice(2,6);
-        await dbSet('cursos/'+cid2,{nombre:nombre,creado:ahora,creadoPor:ME?(ME.idea||ME.uid):'',tramos:toObj(tramos),espacios:toObj(espacios),unidades:unidades,reservas:{}});
+        const cid2='c-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        await dbSet('cursos/'+cid2,{nombre:nombre,creado:Date.now(),creadoPor:ME?(ME.idea||ME.uid):'',tramos:toObj(tramos),espacios:toObj(espacios),unidades:unidades,reservas:{}});
         if(!S.cursoActual||!S.cursos[S.cursoActual])await dbSet('config/cursoActual',cid2);
-        /* reflejar el curso nuevo en el estado local: si no, applyCourse() volvía a abrir
-           el curso anterior (y el selector no lo mostraba) hasta que llegase el
-           evento de sincronización, aunque el aviso dijese «creado y abierto» */
-        S.cursos[cid2]={nombre:nombre,creado:ahora,creadoPor:ME?(ME.idea||ME.uid):'',tramos:tramos,spaces:espacios.slice().sort(cmpEsp),bookings:[],ocupaciones:{},ocuMeta:{},unidades:unidades,ports:[],lapcfg:[],cars:[]};
         CURSO_MANUAL=true;CURSO_PICK=cid2;S.cursoSel=cid2;applyCourse();syncCursoUI();
         toast('Curso «'+nombre+'» creado y abierto');
       }
@@ -3249,7 +3160,6 @@ function delCurso(cid){
   confirmDlg('Eliminar curso','Vas a eliminar el curso <b>'+esc(c.nombre)+'</b>, con <b>'+nE+'</b> espacio'+(nE===1?'':'s')+' y <b>'+nR+'</b> reserva'+(nR===1?'':'s')+'. <b>Esta acción es definitiva y no se puede deshacer.</b>','Eliminar definitivamente',async()=>{
     try{
       await dbDel('cursos/'+cid);
-      delete S.cursos[cid]; // evita que applyCourse() reabra el curso recién eliminado
       if(S.cursoActual===cid){
         const others=Object.keys(S.cursos).filter(x=>x!==cid);
         if(others.length)await dbSet('config/cursoActual',others.sort((a,b)=>String(S.cursos[b].nombre).localeCompare(String(S.cursos[a].nombre),'es'))[0]);
@@ -3282,11 +3192,8 @@ function buildNav(){
   if(!DB_OK){loginFatal('No se pudo cargar el SDK de Firebase. Comprueba tu conexión a internet y recarga la página.');return}
   $('#login-form').onsubmit=loginSubmit;
   try{
-    const adminPass=await seedIfEmpty();
-    if(adminPass)showAdminFirstRun(adminPass);
+    await seedIfEmpty();
     await migrateCourses();
-    await migrateIdeaNorm();
-    await migratePassToIdea();
     startSync();
     const ok=await restoreSession();
     if(ok)enterApp();

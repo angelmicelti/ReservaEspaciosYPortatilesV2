@@ -521,8 +521,7 @@ function tramoPast(d,id){if(String(d||'')!==todayISO())return false;const t=tram
 function anyTramoPast(d,ids){return (ids||[]).some(x=>tramoPast(d,x))}
 function pastGuard(d,slot){if(isPastDay(d)){toast('Ese día ya ha pasado: no se puede reservar','err');return true}if(slot&&tramoPast(d,slot)){toast('Esa hora ya ha pasado: no se puede reservar','err');return true}return false}
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
-function cursoAnios(){const m=/(\d{4})\s*-\s*(\d{4})/.exec(String((S.cursos[S.cursoSel]||{}).nombre||''));return m?[m[1],m[2]]:schoolYearName().split('-')} /* años del curso ABIERTO si su nombre los trae (p. ej. 2025-2026) */
-function finCursoISO(){const p=cursoAnios();return p[1]+'-06-30'}
+function finCursoISO(){const p=schoolYearName().split('-');return p[1]+'-06-30'}
 function monday(d){const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
 function dow1(iso){return (dparse(iso).getDay()+6)%7+1}
 function fmtLargo(iso){const d=dparse(iso);return DIAS[d.getDay()]+', '+d.getDate()+' de '+['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][d.getMonth()]+' de '+d.getFullYear()}
@@ -533,11 +532,6 @@ function fmtTsHora(ts){if(!ts)return '';const d=new Date(ts);return pad2(d.getDa
 function normTxt(s){return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
 function cleanTxt(s){return String(s==null?'':s).replace(/\s+/g,' ').trim()}
 function fixPhone(s){let v=cleanTxt(s);if(/\d{5,}\.0$/.test(v))v=v.replace(/\.0$/,'');return v}
-/* Usuario IdEA normalizado: minúsculas y sin acentos, sin el dominio @g.educaand.es
-   y sin caracteres no válidos. Se usa para el usuario de acceso, su contraseña inicial
-   y todas las comparaciones, de modo que pegar el correo completo o escribir con
-   mayúsculas/acentos da igual en cualquier punto de la aplicación. */
-function normIdea(v){return normTxt(String(v||'')).split('@')[0].replace(/[^a-z0-9._-]/g,'')}
 function ddmmyy2iso(s){const m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(String(s||'').trim());if(!m)return '';let y=m[3];if(y.length===2)y='20'+y;return y+'-'+pad2(+m[2])+'-'+pad2(+m[1])}
 
 /* ---- SHA-256 para contraseñas (crypto.subtle + fallback JS puro) ---- */
@@ -899,30 +893,10 @@ async function migratePassToIdea(){
   const upd={};
   for(const u of Object.values(v.usuarios)){
     if(!u||u.rol==='admin'||!u.uid)continue;
-    const idea=normIdea(u.idea);
+    const idea=normTxt(String(u.idea||'')).replace(/[^a-z0-9._-]/g,'');
     if(!idea)continue;
     const hDni=await hashPassword(String(u.dni||'').toUpperCase());
     if(String(u.passHash||'')===hDni)upd['usuarios/'+u.uid+'/passHash']=await hashPassword(idea);
-  }
-  if(Object.keys(upd).length)await db.ref(NS).update(upd);
-}
-
-/* ---- Migración única: limpia el usuario IdEA guardado de cada cuenta (minúsculas,
-   sin el dominio @g.educaand.es y sin caracteres no válidos). Repara cuentas importadas
-   con el campo IdEA «en bruto», que no podían iniciar sesión aunque su contraseña fuese
-   correcta. Se ejecuta ANTES que migratePassToIdea para que las contraseñas iniciales
-   se calculen sobre el IdEA limpio. No toca contraseñas. ---- */
-async function migrateIdeaNorm(){
-  const v=(await db.ref(NS).get()).val()||{};
-  if(!v.usuarios||!Object.keys(v.usuarios).length)return;
-  if(v.config&&v.config.migradoIdeaNorm)return;
-  const tr=await db.ref(NS+'config/migradoIdeaNorm').transaction(cur=>cur==null?Date.now():undefined);
-  if(!tr||!tr.committed)return;
-  const upd={};
-  for(const u of Object.values(v.usuarios)){
-    if(!u||!u.uid)continue;
-    const clean=normIdea(u.idea||'');
-    if(clean&&clean!==String(u.idea||''))upd['usuarios/'+u.uid+'/idea']=clean;
   }
   if(Object.keys(upd).length)await db.ref(NS).update(upd);
 }
@@ -947,7 +921,7 @@ async function loginSubmit(ev){
   ev.preventDefault();
   const errBox=$('#login-err');errBox.classList.remove('on');
   const raw=cleanTxt($('#login-user').value).toLowerCase();
-  const idf=normIdea(raw); // tolera mayúsculas, acentos, espacios y el dominio @g.educaand.es pegado
+  const idf=raw.indexOf('@')>=0?raw.split('@')[0]:raw; // si pegan el correo completo, se elimina el dominio
   const pw=String($('#login-pass').value||'');
   if(!idf||!pw){loginError('Introduce tu usuario IdEA y la contraseña.');return}
   if(!DB_OK){loginError('Sin conexión con la base de datos. Recarga la página.');return}
@@ -1267,7 +1241,7 @@ function paintSemana(){
   const cols='140px repeat('+nd+',minmax(150px,1fr))';
   let h='<div class="cal" style="grid-template-columns:'+cols+';min-width:'+(140+nd*150)+'px">';
   h+='<div class="h cl" style="text-align:left">Horario</div>';
-  for(const iso of days){const d=dparse(iso);h+='<div class="h'+(iso===todayISO()?' today':'')+'">'+DIAS3[dow1(iso)%7]+' '+d.getDate()+'<small>'+MESP[d.getMonth()]+'</small></div>'}
+  for(const iso of days){const d=dparse(iso);h+='<div class="h'+(iso===todayISO()?' today':'')+'">'+DIAS3[dow1(iso)]+' '+d.getDate()+'<small>'+MESP[d.getMonth()]+'</small></div>'}
   for(const tr of S.tramos){
     const rec=/recreo/i.test(tr.label);
     h+='<div class="hl cl'+(rec?' rec':'')+'"><b>'+esc(tr.label)+'</b><small>'+esc(tr.ini)+'–'+esc(tr.fin)+'</small>'+(tr.res?'':'<span class="tag">no reservable</span>')+'</div>';
@@ -1310,7 +1284,7 @@ function paintDia(){
 /* ================= Listado de espacios reservados ================= */
 let LF={space:'',teacher:'',from:'',to:'',q:'',mine:null};
 render.reservas=function(){
-  if(!S.cursoSel){$('#view-reservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-reservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   if(LF.mine===null)LF.mine=!isAdmin();
   const spOpts='<option value="">Todos los espacios</option>'+S.spaces.map(s=>'<option value="'+esc(s.id)+'"'+(LF.space===s.id?' selected':'')+'>'+esc(s.name)+'</option>').join('');
   const prSel=isAdmin()?('<select class="inp" id="lf-prof" style="width:auto;max-width:220px"><option value="">Todo el profesorado</option>'+S.teachers.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(t=>'<option value="'+esc(t.dni)+'"'+(LF.teacher===t.dni?' selected':'')+'>'+esc(t.nombre)+'</option>').join('')+'</select>'):'';
@@ -1357,7 +1331,7 @@ function updateListBody(){
     const past=b.date<todayISO();
     const can=canEditBooking(b);
     return '<tr'+(past?' class="past"':'')+'>'
-      +'<td><b>'+fmtCorto(b.date)+'</b><br><small class="mut">'+DIAS[dow1(b.date)%7]+'</small></td>'
+      +'<td><b>'+fmtCorto(b.date)+'</b><br><small class="mut">'+DIAS[dow1(b.date)]+'</small></td>'
       +'<td>'+esc(slotsLabel(b))+'</td>'
       +'<td>'+esc(sp?sp.name:'(espacio eliminado)')+'</td>'
       +'<td>'+esc(bProfName(b))+'</td>'
@@ -1373,7 +1347,7 @@ function exportCSV(){
   const lines=r.map(b=>{
     const sp=spaceById(b.spaceId),p=teacherByDni(b.teacherDni);
     const slots=b.slots.map(id=>{const t=tramoById(id);return t?tramoFull(id):id}).join(' | ');
-    return [fmtCorto(b.date),DIAS[dow1(b.date)%7],slots,sp?sp.name:'',sp?sp.code:'',bProfName(b),p?p.dni:(b.teacherDni||''),p?p.dep:'',b.actividad||'',b.notas||'']
+    return [fmtCorto(b.date),DIAS[dow1(b.date)],slots,sp?sp.name:'',sp?sp.code:'',bProfName(b),p?p.dni:(b.teacherDni||''),p?p.dep:'',b.actividad||'',b.notas||'']
       .map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';');
   });
   downloadFile('reservas_espacios_'+todayISO()+'.csv',new Blob(['\ufeff'+head.join(';')+'\r\n'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));
@@ -1431,8 +1405,8 @@ function infRows(){
     if(a.date!==b.date)return a.date<b.date?-1:1;
     const ia=ini0(a),ib=ini0(b);
     if(ia!==ib)return ia<ib?-1:1;
-    if(!es)return (+a.carro||0)-(+b.carro||0); /* los carros se ordenan por número: el 2 antes que el 10 */
-    const la=(spaceById(a.spaceId)||{}).name||'',lb=(spaceById(b.spaceId)||{}).name||'';
+    const la=es?((spaceById(a.spaceId)||{}).name||''):+a.carro;
+    const lb=es?((spaceById(b.spaceId)||{}).name||''):+b.carro;
     return String(la).localeCompare(String(lb),'es');
   });
   return rows;
@@ -1635,9 +1609,9 @@ render.informes=function(){
    +'</div>';
   $('#inf-k-esp').onclick=()=>{if(INF.kind!=='espacios'){INF.kind='espacios';INF.aula=false;INF.aulas=[];render.informes()}};
   $('#inf-k-pt').onclick=()=>{if(INF.kind!=='portatiles'){INF.kind='portatiles';INF.aula=false;INF.aulas=[];render.informes()}};
-  $('#inf-prof-t').onchange=e=>{INF.prof=e.target.checked;$('#inf-prof-box').hidden=!INF.prof;$('#inf-prof-all').style.display=INF.prof?'inline-flex':'none';infPaint();};
-  $('#inf-aula-t').onchange=e=>{INF.aula=e.target.checked;$('#inf-aula-box').hidden=!INF.aula;$('#inf-aula-all').style.display=INF.aula?'inline-flex':'none';infPaint();};
-  $('#inf-per-t').onchange=e=>{INF.per=e.target.checked;$('#inf-per-box').hidden=!INF.per;infPaint();};
+  $('#inf-prof-t').onchange=e=>{INF.prof=e.target.checked;$('#inf-prof-box').hidden=!INF.prof;$('#inf-prof-all').style.display=INF.prof?'inline-flex':'none';if(INF.prof)infPaint();};
+  $('#inf-aula-t').onchange=e=>{INF.aula=e.target.checked;$('#inf-aula-box').hidden=!INF.aula;$('#inf-aula-all').style.display=INF.aula?'inline-flex':'none';if(INF.aula)infPaint();};
+  $('#inf-per-t').onchange=e=>{INF.per=e.target.checked;$('#inf-per-box').hidden=!INF.per;if(INF.per)infPaint();};
   $('#inf-pq').oninput=e=>{INF_Q=e.target.value;$('#inf-prof-grid').innerHTML=infTeacherGrid()};
   $('#inf-prof-grid').addEventListener('change',e=>{const d=e.target.dataset&&e.target.dataset.dni;if(!d)return;if(e.target.checked){if(INF.profs.indexOf(d)<0)INF.profs.push(d)}else INF.profs=INF.profs.filter(x=>x!==d);infPaint()});
   $('#inf-aula-grid').addEventListener('change',e=>{const d=e.target.dataset&&e.target.dataset.loc;if(!d)return;if(e.target.checked){if(INF.aulas.indexOf(d)<0)INF.aulas.push(d)}else INF.aulas=INF.aulas.filter(x=>String(x)!==String(d));infPaint()});
@@ -1653,7 +1627,7 @@ render.informes=function(){
   $('#inf-ph').onclick=()=>{INF.perMode='dia';INF.dia=todayISO();infSyncPer();infPaint()};
   $('#inf-ps').onclick=()=>{INF.perMode='rango';INF.from=diso(monday(new Date()));INF.to=diso(addDays(monday(new Date()),6));infSyncPer();infPaint()};
   $('#inf-pmes').onclick=()=>{const a=new Date();a.setDate(1);const b=new Date();b.setMonth(b.getMonth()+1,0);INF.perMode='rango';INF.from=diso(a);INF.to=diso(b);infSyncPer();infPaint()};
-  $('#inf-pc').onclick=()=>{const sy=cursoAnios();INF.perMode='rango';INF.from=sy[0]+'-09-01';INF.to=finCursoISO();infSyncPer();infPaint()};
+  $('#inf-pc').onclick=()=>{const sy=schoolYearName().split('-');INF.perMode='rango';INF.from=sy[0]+'-09-01';INF.to=finCursoISO();infSyncPer();infPaint()};
   $('#inf-x-csv').onclick=infExportCSV;
   $('#inf-x-xls').onclick=infExportXLSX;
   $('#inf-x-pdf').onclick=infExportPDF;
@@ -1741,13 +1715,12 @@ function openUserModal(idU){
     const err=m=>{$('#u-err').innerHTML='<div class="errbox">'+esc(m)+'</div>'};
     const nombre=cleanTxt($('#u-nombre').value);
     const dni=cleanTxt($('#u-dni').value).toUpperCase();
-    const idea=normIdea($('#u-idea').value);
+    const idea=normTxt($('#u-idea').value).replace(/[^a-z0-9._-]/g,'');
     const cuenta=cleanTxt($('#u-cuenta').value).toLowerCase();
     const pass=$('#u-pass').value;
     if(!nombre){err('El nombre es obligatorio.');return}
     if(nuevo&&!pass){err('Indica una contraseña inicial (por ejemplo, su usuario IdEA).');return}
-    if(yo&&!idea){err('Tu propia cuenta necesita un usuario IdEA: sin él no podrías volver a iniciar sesión.');return}
-    const dup=S.teachers.find(x=>(!u||x.uid!==u.uid)&&((idea&&normIdea(x.idea)===idea)||(cuenta&&String(x.cuenta||'').toLowerCase()===cuenta)));
+    const dup=S.teachers.find(x=>(!u||x.uid!==u.uid)&&((idea&&normTxt(x.idea||'')===idea)||(cuenta&&String(x.cuenta||'').toLowerCase()===cuenta)));
     if(dup){err('Ese usuario IdEA o correo ya lo usa: '+dup.nombre);return}
     const rec={uid:u?u.uid:'',nombre:nombre,dni:dni,puesto:cleanTxt($('#u-puesto').value),toma:u?(u.toma||''):'',cese:cleanTxt($('#u-cese').value),dep:cleanTxt($('#u-dep').value),tel:fixPhone($('#u-tel').value),mov:fixPhone($('#u-mov').value),idea:idea,cuenta:cuenta,coord:u?(u.coord||'No'):'No',rol:(!yo&&$('#u-rol').value==='admin')?'admin':'usuario',activo:$('#u-activo').checked};
     if(yo)rec.rol='admin';
@@ -1757,13 +1730,15 @@ function openUserModal(idU){
       rec.uid=uidF;rec.creado=Date.now();
       rec.passHash=await hashPassword(pass);
       S.teachers.push(rec);
-      try{await dbSet('usuarios/'+rec.uid,rec);toast('Usuario creado')}catch(e){} /* el éxito solo se anuncia si Firebase lo ha guardado */
+      try{await dbSet('usuarios/'+rec.uid,rec)}catch(e){}
+      toast('Usuario creado');
     }else{
       Object.assign(u,rec);
       const upd=Object.assign({},rec);
       if(pass){u.passHash=await hashPassword(pass);upd.passHash=u.passHash}
-      try{await dbUpd('usuarios/'+u.uid,upd);toast('Usuario actualizado')}catch(e){} /* el éxito solo se anuncia si Firebase lo ha guardado */
+      try{await dbUpd('usuarios/'+u.uid,upd)}catch(e){}
       if(yo)ME=u;
+      toast('Usuario actualizado');
     }
     closeModal();refreshNav();updateProfBody();
   };
@@ -1806,8 +1781,7 @@ function parseTeacherRows(rows){
     const nombre=get('nombre'),dni=get('dni').toUpperCase();
     if(!nombre&&!dni)continue;
     if(dni&&seen.has(dni))continue;if(dni)seen.add(dni);
-if(!dni){const nk='n:'+normTxt(nombre);if(seen.has(nk))continue;seen.add(nk)} /* filas sin DNI repetidas: una sola cuenta */
-    out.push({nombre:nombre,dni:dni,puesto:get('puesto'),toma:get('toma'),cese:get('cese'),dep:get('dep'),tel:fixPhone(get('tel')),mov:fixPhone(get('mov')),idea:normIdea(get('idea')),cuenta:get('cuenta'),coord:/^s/i.test(get('coord'))?'Sí':'No'});
+    out.push({nombre:nombre,dni:dni,puesto:get('puesto'),toma:get('toma'),cese:get('cese'),dep:get('dep'),tel:fixPhone(get('tel')),mov:fixPhone(get('mov')),idea:get('idea'),cuenta:get('cuenta'),coord:/^s/i.test(get('coord'))?'Sí':'No'});
   }
   return out;
 }
@@ -1850,8 +1824,6 @@ function showImportPreview(list){
    +'<div class="slots"><label class="chk"><input type="radio" name="imp" value="upd" checked> Actualizar y crear (recomendado)</label>'
    +'<label class="chk"><input type="radio" name="imp" value="rep"> Sustituir plantilla <small>(elimina usuarios que no estén en el archivo)</small></label></div></div>'
    +'<div class="mfoot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn pri" id="imp-ok">Importar '+list.length+' usuario'+(list.length===1?'':'s')+'</button></div>');
-  const ptxt=$('#pw0-txt');
-  if(ptxt)ptxt.onfocus=()=>{const r=$('#modal-root input[name="pw0"][value="comun"]');if(r&&!r.checked)r.checked=true}; /* escribir la contraseña común debe activar su opción */
   $('#imp-ok').onclick=()=>{
     const r=$('#modal-root input[name="imp"]:checked'),p=$('#modal-root input[name="pw0"]:checked');
     const pwMode=p?p.value:'idea';
@@ -1864,32 +1836,29 @@ async function applyImport(list,mode,pwMode,pwComun){
   /* Contraseña inicial de cada cuenta nueva: por defecto, su propio usuario IdEA.
      Si falta el usuario IdEA, se asigna una aleatoria (la cuenta no será accesible
      hasta que administración le fije un usuario IdEA y una contraseña). */
-  const pwFor=t=>pwMode==='comun'?(String(pwComun||'')||uid()):(normIdea(t.idea)||uid());
+  const pwFor=t=>pwMode==='comun'?(String(pwComun||'')||uid()):(normTxt(String(t.idea||'')).replace(/[^a-z0-9._-]/g,'')||uid());
   const exByDni={};S.teachers.forEach(x=>{if(x.dni)exByDni[x.dni]=x});
-  const exByIdea={};S.teachers.forEach(x=>{const i=normIdea(x.idea);if(i&&!exByIdea[i])exByIdea[i]=x}); /* filas sin DNI: se emparejan por IdEA para no duplicar cuentas */
   let nuevos=0,actual=0;
   try{
     if(mode==='rep'){
       const keep=new Set(list.map(t=>t.dni).filter(Boolean));
-      const keepIdea=new Set(list.map(t=>t.dni?'':normIdea(t.idea)).filter(Boolean));
-      const removed=S.teachers.filter(x=>x.rol!=='admin'&&!(x.dni&&keep.has(x.dni))&&!(normIdea(x.idea)&&keepIdea.has(normIdea(x.idea))));
+      const removed=S.teachers.filter(x=>x.rol!=='admin'&&!(x.dni&&keep.has(x.dni)));
       for(const x of removed){await dbDel('usuarios/'+x.uid)}
-      S.teachers=S.teachers.filter(x=>x.rol==='admin'||(x.dni&&keep.has(x.dni))||(normIdea(x.idea)&&keepIdea.has(normIdea(x.idea))));
+      S.teachers=S.teachers.filter(x=>x.rol==='admin'||(x.dni&&keep.has(x.dni)));
     }
     for(const t of list){
-      let ex=t.dni?exByDni[t.dni]:null;
-      if(!ex&&normIdea(t.idea))ex=exByIdea[normIdea(t.idea)]||null;
+      const ex=t.dni?exByDni[t.dni]:null;
       if(ex){
-const upd={nombre:t.nombre,dni:(t.dni||ex.dni||''),puesto:t.puesto,toma:t.toma,cese:t.cese,dep:t.dep,tel:t.tel,mov:t.mov,idea:(t.idea||ex.idea||''),cuenta:t.cuenta,coord:t.coord}; // sin IdEA en el fichero: se conserva el que ya había (y se corrige el DNI si cambió)
+        const upd={nombre:t.nombre,puesto:t.puesto,toma:t.toma,cese:t.cese,dep:t.dep,tel:t.tel,mov:t.mov,idea:t.idea,cuenta:t.cuenta,coord:t.coord};
         Object.assign(ex,upd);await dbUpd('usuarios/'+ex.uid,upd);actual++;
       }else{
         const u=cl(t);
-        const idea=normIdea(t.idea);
+        const idea=normTxt(t.idea||'').replace(/[^a-z0-9._-]/g,'');
         const base='u-'+(idea||('x'+Math.abs(hashStr(t.dni||t.nombre))));
         let uidF=base,i=2;while(S.teachers.find(x=>x.uid===uidF))uidF=base+'-'+(i++);
         u.uid=uidF;u.idea=idea;u.rol='usuario';u.activo=true;u.creado=Date.now();
         u.passHash=await hashPassword(pwFor(t));
-        S.teachers.push(u);if(u.dni)exByDni[u.dni]=u;if(idea)exByIdea[idea]=u;
+        S.teachers.push(u);if(u.dni)exByDni[u.dni]=u;
         await dbSet('usuarios/'+u.uid,u);nuevos++;
       }
     }
@@ -2108,7 +2077,7 @@ function occForDow(dow,spaceId,tramoId){
   return (d&&d[tramoId])?String(d[tramoId]):'';
 }
 render.horarios=function(){
-  if(!S.cursoSel){$('#view-horarios').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto. La ocupación GHC se guarda dentro de cada curso.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-horarios').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto. La ocupación GHC se guarda dentro de cada curso.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   $('#view-horarios').innerHTML=
    '<div class="card">'
    +'<div class="card-h"><h2>Importar horarios de GHC</h2><button class="btn pri" id="ghc-pick">'+ic('ul',15)+' Elegir ficheros…</button></div>'
@@ -2157,8 +2126,8 @@ async function ghcReadFiles(files){
       else{
         const t=normTxt(item.res.titulo);
         const byName=S.spaces.find(s=>t&&normTxt(s.name)===t);
-        if(byName){item.spaceId=byName.id;item.res.aviso='El código '+esc(code)+' no coincide con ninguna estancia; se ha preseleccionado por el título del fichero ('+esc(byName.name)+')'}
-        else item.res.aviso='No existe ninguna estancia con el código '+esc(code)+(t?' ni el título «'+esc(item.res.titulo)+'»':'')+': selecciona una de la lista o crea estancias automáticamente';
+        if(byName){item.spaceId=byName.id;item.res.aviso='El código '+code+' no coincide con ninguna estancia; se ha preseleccionado por el título del fichero ('+byName.name+')'}
+        else item.res.aviso='No existe ninguna estancia con el código '+code+(t?' ni el título «'+item.res.titulo+'»':'')+': selecciona una de la lista o crea estancias automáticamente';
       }
     }catch(e){item.err=String(e.message||e)}
   }
@@ -2213,7 +2182,7 @@ async function ghcApply(){
     'Importar',()=>ghcDoImport(items,modo,crear));
 }
 async function ghcDoImport(items,modo,crear){
-  let tramos=cl(S.tramos),bkAfter=null,ptAfter=null,ptChanged=false;
+  let tramos=cl(S.tramos),bkAfter=null;
   if(modo==='sust'){
     const rec=tramos.filter(t=>/recreo/i.test(t.label));
     tramos=[];
@@ -2234,14 +2203,6 @@ async function ghcDoImport(items,modo,crear){
       const key=t?(t.ini+'-'+t.fin):null;
       return (key&&(byIni[key]||oldByIni[key]))||s;
     }).filter(s=>tramos.some(t=>t.id===s))})).filter(b=>b.slots.length);
-    /* las reservas de portátiles se remapean igual (mismo horario, nueva id) y se eliminan si pierden todos sus tramos */
-    ptAfter=S.ports.map(p=>Object.assign({},p,{tramos:pTramos(p).map(s=>{
-      const t=S.tramos.find(x=>x.id===s)||null;
-      const key=t?(t.ini+'-'+t.fin):null;
-      return (key&&(byIni[key]||oldByIni[key]))||s;
-    }).filter(s=>tramos.some(t=>t.id===s))})).filter(p=>p.tramos.length);
-    const ptById={};ptAfter.forEach(p=>{ptById[p.id]=p});
-    ptChanged=S.ports.some(p=>{const q=ptById[p.id];return !q||q.tramos.join('|')!==pTramos(p).join('|')});
   }
   let nuevosTramos=0;
   for(const it of items){
@@ -2268,7 +2229,6 @@ async function ghcDoImport(items,modo,crear){
     S.tramos=tramos;
     try{await dbSet(CPATH('tramos'),tramos)}catch(e){}
     if(bkAfter){S.bookings=bkAfter;try{await dbSet(CPATH('reservas'),toObj(bkAfter))}catch(e){}}
-    if(ptAfter&&ptChanged){S.ports=ptAfter;try{await dbSet(CPATH('portatiles'),toObj(ptAfter))}catch(e){}}
   }
   // escribir ocupaciones (sustituye la estancia completa) en tiempo real
   let okN=0;
@@ -2376,7 +2336,6 @@ function spaceDelId(id){
 
 /* ================= Ajustes (acordeones; solo uno abierto) ================= */
 let AJ_OPEN=null; // id del acordeón abierto (null = todos replegados)
-let TR_DRAFT=null; // copia de trabajo de los tramos: añadir o quitar filas sin «Guardar tramos» no toca el estado real
 function ajToggle(id){
   const el=document.getElementById('acc-'+id);
   const was=el&&el.classList.contains('open');
@@ -2446,7 +2405,7 @@ render.ajustes=function(){
   $('#bk-exp').onclick=()=>{const c=S.cursos[S.cursoSel]||{};downloadFile('copia_reservas_espacios_'+(c.nombre||'curso')+'_'+todayISO()+'.json',new Blob([JSON.stringify({v:3,exportado:todayISO(),curso:{nombre:c.nombre||'',settings:S.settings,espacios:S.spaces,tramos:S.tramos,reservas:S.bookings,ocupaciones:S.ocupaciones||{},ocupacionesMeta:S.ocuMeta||{}}},null,2)],{type:'application/json'}));toast('Copia descargada (curso '+(c.nombre||'—')+')')};
   $('#bk-wipe').onclick=()=>{confirmDlg('Borrar reservas','Se eliminarán <b>todas las reservas</b> del curso abierto ( '+esc(nombreCurso)+' ), para todos los usuarios. El profesorado, los espacios y los demás cursos no se tocarán.','Borrar todo',async()=>{S.bookings=[];try{await dbDel(CPATH('reservas'))}catch(e){}refreshNav();toast('Todas las reservas del curso eliminadas')})};
   $('#bk-old').onclick=()=>{const t=todayISO();const orf=S.bookings.filter(b=>b.date<t);if(!orf.length){toast('No hay reservas de fechas pasadas');return}confirmDlg('Eliminar reservas pasadas','Se eliminarán <b>'+orf.length+'</b> reserva'+(orf.length===1?'':'s')+' de fechas anteriores a hoy (curso '+nombreCurso+').','Eliminar',async()=>{S.bookings=S.bookings.filter(b=>b.date>=t);try{await dbSet(CPATH('reservas'),toObj(S.bookings))}catch(e){}refreshNav();toast('Reservas pasadas eliminadas')})};
-  $('#tr-add').onclick=()=>{TR_DRAFT=TR_DRAFT||cl(S.tramos);TR_DRAFT.push({id:'t-'+uid(),label:'',ini:'08:30',fin:'09:15',res:true});trBody()};
+  $('#tr-add').onclick=()=>{S.tramos.push({id:'t-'+uid(),label:'',ini:'08:30',fin:'09:15',res:true});trBody()};
   $('#tr-save').onclick=saveTramos;
   $('#un-save').onclick=async()=>{
     const av=$$('#un-grid input:checked').map(i=>i.value).filter(g=>GRUPOS.indexOf(g)>=0);
@@ -2485,7 +2444,7 @@ render.ajustes=function(){
   };
   const b=$('#c-add');if(b)b.onclick=()=>cursoModal(null);
   profBind();
-  TR_DRAFT=cl(S.tramos);trBody();ajSpBody();
+  trBody();ajSpBody();
 };
 function ajSpBody(){
   const tb=$('#aj-sp-body');if(!tb)return;
@@ -2505,15 +2464,14 @@ function ajSpDel(id){
   confirmDlg('Eliminar espacio','¿Eliminar <b>'+esc(s.name)+'</b> del curso abierto? El espacio no tiene reservas.','Eliminar',async()=>{S.spaces=S.spaces.filter(x=>x.id!==id);try{await dbDel(CPATH('espacios/'+id))}catch(e){}render.ajustes();toast('Espacio eliminado')});
 }
 function trBody(){
-  TR_DRAFT=TR_DRAFT||cl(S.tramos); /* el editor trabaja sobre el borrador, no sobre el estado real */
-  $('#tr-body').innerHTML=TR_DRAFT.map((t,i)=>'<tr data-i="'+i+'">'
+  $('#tr-body').innerHTML=S.tramos.map((t,i)=>'<tr data-i="'+i+'">'
    +'<td><input class="inp" data-k="label" value="'+esc(t.label)+'" placeholder="Etiqueta"></td>'
    +'<td><input type="time" class="inp" data-k="ini" value="'+esc(t.ini)+'"></td>'
    +'<td><input type="time" class="inp" data-k="fin" value="'+esc(t.fin)+'"></td>'
    +'<td style="text-align:center"><input type="checkbox" data-k="res"'+(t.res?' checked':'')+' style="accent-color:var(--pri)"></td>'
    +'<td class="ra"><button class="btn icon sm" title="Quitar tramo" onclick="trDelRow('+i+')">'+ic('trash',14)+'</button></td></tr>').join('');
 }
-function trDelRow(i){TR_DRAFT=TR_DRAFT||cl(S.tramos);TR_DRAFT.splice(i,1);trBody()}
+function trDelRow(i){S.tramos.splice(i,1);trBody()}
 function saveTramos(){
   const list=[];let ok=true;
   $$('#tr-body tr').forEach(r=>{
@@ -2522,20 +2480,14 @@ function saveTramos(){
     const ini=g('ini').value||'08:30',fin=g('fin').value||'09:15';
     const res=g('res').checked;
     if(!label){ok=false;return}
-    const old=(TR_DRAFT||S.tramos)[+r.dataset.i];
+    const old=S.tramos[+r.dataset.i];
     list.push({id:old?old.id:('t-'+uid()),label:label,ini:ini,fin:fin,res:res});
   });
   if(!ok){toast('Todos los tramos necesitan una etiqueta','err');return}
   const kept=new Set(list.map(t=>t.id));
   const removed=S.tramos.filter(t=>!kept.has(t.id)).map(t=>t.id);
   const affected=S.bookings.filter(b=>b.slots.some(s=>removed.includes(s)));
-  const affectedP=S.ports.filter(p=>pTramos(p).some(s=>removed.includes(s)));
   const doIt=async()=>{S.tramos=list;S.bookings.forEach(b=>{b.slots=b.slots.filter(s=>kept.has(s))});S.bookings=S.bookings.filter(b=>b.slots.length);
-    S.ports.forEach(p=>{p.tramos=pTramos(p).filter(s=>kept.has(s))});S.ports=S.ports.filter(p=>p.tramos.length); /* las reservas de portátiles también pierden los tramos eliminados */
-    /* los payloads se preparan ANTES de cualquier escritura: la primera escritura
-       dispara la sincronización en vivo, que reemplaza S, y leer S.bookings o
-       S.ports después devolvía las reservas recién descargadas, sin podar */
-    const bkObj=affected.length?toObj(S.bookings):null,ptObj=affectedP.length?toObj(S.ports):null;
     // quitar de la ocupación GHC los tramos eliminados
     if(removed.length&&S.ocupaciones){let dirty=false;const occ2={};
       Object.keys(S.ocupaciones).forEach(sid=>{const dd=S.ocupaciones[sid],nd={};
@@ -2543,8 +2495,8 @@ function saveTramos(){
         if(Object.keys(nd).length)occ2[sid]=nd});
       if(dirty){S.ocupaciones=occ2;dbSet(CPATH('ocupaciones'),occ2).catch(()=>{})}
     }
-    try{await dbSet(CPATH('tramos'),list);if(bkObj)await dbSet(CPATH('reservas'),bkObj);if(ptObj)await dbSet(CPATH('portatiles'),ptObj)}catch(e){}render.ajustes();toast('Tramos horarios guardados')};
-  if(affected.length||affectedP.length)confirmDlg('Tramos eliminados','Hay <b>'+affected.length+'</b> reserva'+(affected.length===1?'':'s')+' de espacios'+(affectedP.length?' y <b>'+affectedP.length+'</b> de portátiles':'')+' que usa(n) tramos eliminados: esos tramos se quitarán de dichas reservas (y se borrarán si quedan vacías).','Continuar',doIt);
+    try{await dbSet(CPATH('tramos'),list);if(affected.length)await dbSet(CPATH('reservas'),toObj(S.bookings))}catch(e){}render.ajustes();toast('Tramos horarios guardados')};
+  if(affected.length)confirmDlg('Tramos eliminados','Hay <b>'+affected.length+'</b> reserva'+(affected.length===1?'':'s')+' que usa(n) tramos eliminados: esos tramos se quitarán de dichas reservas (y se borrarán si quedan vacías).','Continuar',doIt);
   else doIt();
 }
 /* ================= Modal de reserva ================= */
@@ -2669,8 +2621,9 @@ function saveBooking(id){
     return;
   }
   if(id){const b=S.bookings.find(x=>x.id===id);if(b)Object.assign(b,nb)}else S.bookings.push(nb);
-  dbSet(CPATH('reservas/'+nb.id),nb).then(()=>{toast('Reserva guardada: '+((spaceById(spaceId)||{}).name||'')+', '+fmtCorto(date))}).catch(()=>{}); /* el éxito solo se anuncia si Firebase lo ha guardado (el error ya avisa solo) */
+  dbSet(CPATH('reservas/'+nb.id),nb).catch(()=>{});
   closeModal();refreshNav();go(CUR);
+  toast('Reserva guardada: '+((spaceById(spaceId)||{}).name||'')+', '+fmtCorto(date));
 }
 function delBookingId(id){
   const b=S.bookings.find(x=>x.id===id);if(!b)return;
@@ -2682,7 +2635,7 @@ function delBookingId(id){
 /* ================= Reserva de portátiles ================= */
 let PT_DATE=null,PT_TRAMOS=[],PT_SEL={carro:null,laptops:[]},PT_GEST=false;
 render.portatiles=function(){
-  if(!S.cursoSel){$('#view-portatiles').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-portatiles').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   if(!S.tramos.length){$('#view-portatiles').innerHTML='<div class="empty">'+ic('clock',22)+'<p>Este curso no tiene tramos horarios definidos.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'ajustes\')">Ir a Ajustes</button>':'')+'</div>';return}
   PT_DATE=(PT_DATE&&PT_DATE>=todayISO())?PT_DATE:todayISO();
   PT_TRAMOS=PT_TRAMOS.filter(id=>tramoById(id));
@@ -2804,7 +2757,7 @@ function paintPtList(){
 let PT_RV='semana';
 const PT_RANGES={dia:['Un día','Solo de hoy en adelante: se muestran las horas que no han pasado',0],semana:['Una semana','Hoy y los próximos 6 días',6],c15:['15 días','Hoy y los próximos 14 días',14],mes:['Próximo mes','Hoy y los próximos 30 días',30]};
 render.ptreservas=function(){
-  if(!S.cursoSel){$('#view-ptreservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="goAjustes(\'cursos\')">Ir a Ajustes · Cursos escolares</button>':'')+'</div>';return}
+  if(!S.cursoSel){$('#view-ptreservas').innerHTML='<div class="empty">'+ic('layers',22)+'<p>No hay ningún curso escolar abierto.</p>'+(isAdmin()?'<button class="btn pri" onclick="go(\'cursos\')">Ir a Cursos</button>':'')+'</div>';return}
   const off=PT_RANGES[PT_RV]?PT_RANGES[PT_RV][2]:6;
   const desde=todayISO(),hasta=diso(addDays(dparse(desde),off));
   const seg=Object.keys(PT_RANGES).map(k=>'<button data-rv="'+k+'"'+(k===PT_RV?' class="on"':'')+' title="'+esc(PT_RANGES[k][1])+'">'+esc(PT_RANGES[k][0])+'</button>').join('');
@@ -2832,7 +2785,7 @@ function paintPtAgenda(desde,hasta){
     const nl=d.items.reduce((n,p)=>n+((p.laptops||[]).length),0);
     const items=d.items.map(p=>{
       const tl=pTramos(p);
-      const enCurso=d.date===hoy&&tl.some(id=>{if(tramoPast(d.date,id))return false;const t=tramoById(id);const i=String((t&&t.ini)||'').trim();return /^\d{1,2}:\d{2}$/.test(i)&&i<=hhmm()}); /* en curso = empezado y sin terminar (el MISMO tramo) */
+      const enCurso=d.date===hoy&&tl.some(id=>!tramoPast(d.date,id))&&tl.some(id=>{const t=tramoById(id);const i=String((t&&t.ini)||'').trim();return /^\d{1,2}:\d{2}$/.test(i)&&i<=hhmm()});
       return '<tr><td style="white-space:nowrap">'+esc(tl.map(tramoLabel).join(', '))+'<br><small class="mut">'+esc(slotRanges(tl).map(r=>r.ini+'–'+r.fin).join(' · '))+'</small></td>'
        +'<td><span class="pt-tag">'+esc(carroName(p.carro))+'</span></td>'
        +'<td><b>'+esc(lapRanges(p.laptops))+'</b> <small class="mut">('+p.laptops.length+')</small></td>'
@@ -2925,10 +2878,11 @@ function openPortConfirm(grupo){
     const nc=c.n,nl=rec.laptops.slice();
     PT_SEL={carro:null,laptops:[]};
     S.ports.push(rec);
-    dbSet(CPATH('portatiles/'+rec.id),rec).then(()=>{toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos))}).catch(()=>{}); /* el éxito solo se anuncia si Firebase lo ha guardado */
+    dbSet(CPATH('portatiles/'+rec.id),rec).catch(()=>{});
     closeModal();
     render.portatiles();
     nl.forEach(l=>{const el=document.querySelector('#carro-'+nc+' .lap[data-l="'+l+'"]');if(el)el.classList.add('just')});
+    toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos));
   };
 }
 /* ================= Nueva reserva de portátiles (modal del botón de la barra superior) =================
@@ -3039,11 +2993,12 @@ function openPtConfirm(c,laps,grupo,notas){
     const rec={id:uid(),date:PTN.date,tramos:PTN.tramos.slice(),tramo:PTN.tramos[0]||'',carro:c.n,laptops:laps.slice(),grupo:grupo,notas:notas,userId:(ME&&ME.uid)||'',teacherDni:(ME&&ME.dni)||'',pnom:(ME&&ME.nombre)||'',creado:Date.now(),creadoPor:(ME&&ME.uid)||''};
     const nc=c.n,nl=rec.laptops.slice();
     S.ports.push(rec);
-    dbSet(CPATH('portatiles/'+rec.id),rec).then(()=>{toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos))}).catch(()=>{}); /* el éxito solo se anuncia si Firebase lo ha guardado */
+    dbSet(CPATH('portatiles/'+rec.id),rec).catch(()=>{});
     closeModal();
     if(CUR==='portatiles'){PT_DATE=PTN.date;PT_TRAMOS=PTN.tramos.slice();PT_SEL={carro:null,laptops:[]};render.portatiles();nl.forEach(l=>{const el=document.querySelector('#carro-'+nc+' .lap[data-l="'+l+'"]');if(el)el.classList.add('just')})}
     else if(CUR==='ptreservas')render.ptreservas();
     else if(render[CUR])render[CUR]();
+    toast('Reserva guardada: '+carroName(nc)+', portátiles '+lapRanges(nl)+', '+tramosTxt(rec.tramos));
   };
 }
 function openPortInfo(list,c,l){
@@ -3084,7 +3039,7 @@ function openLapEdit(carro,num){
     if(i>=0)S.lapcfg[i]=rec;else S.lapcfg.push(rec);
     try{await dbSet(CPATH('portatiles_cfg/'+rec.id),rec)}catch(e){}
     closeModal();paintCarts();
-    toast((rec.rep||rec.ret)?'Portátil '+carroName(carro)+' nº '+num+' marcado como '+(rec.ret?'retirado':'en reparación'):'Datos del portátil '+carroName(carro)+' nº '+num+' actualizados');
+    toast((rec.rep||rec.ret)?'Portátil '+esc(carroName(carro))+' nº '+num+' marcado como '+(rec.ret?'retirado':'en reparación'):'Datos del portátil '+esc(carroName(carro))+' nº '+num+' actualizados');
   };
 }
 /* Traslado de un portátil a otro carro: ocupa el primer número libre del carro de destino
@@ -3224,14 +3179,9 @@ function cursoModal(cid){
         let espacios=[];
         if(modo==='copiar'&&src)espacios=cl(src.spaces);
         else if(modo==='estandar')espacios=cl(DEFAULT_SPACES);
-        const ahora=Date.now();
-        const cid2='c-'+ahora.toString(36)+Math.random().toString(36).slice(2,6);
-        await dbSet('cursos/'+cid2,{nombre:nombre,creado:ahora,creadoPor:ME?(ME.idea||ME.uid):'',tramos:toObj(tramos),espacios:toObj(espacios),unidades:unidades,reservas:{}});
+        const cid2='c-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        await dbSet('cursos/'+cid2,{nombre:nombre,creado:Date.now(),creadoPor:ME?(ME.idea||ME.uid):'',tramos:toObj(tramos),espacios:toObj(espacios),unidades:unidades,reservas:{}});
         if(!S.cursoActual||!S.cursos[S.cursoActual])await dbSet('config/cursoActual',cid2);
-        /* reflejar el curso nuevo en el estado local: si no, applyCourse() volvía a abrir
-           el curso anterior (y el selector no lo mostraba) hasta que llegase el
-           evento de sincronización, aunque el aviso dijese «creado y abierto» */
-        S.cursos[cid2]={nombre:nombre,creado:ahora,creadoPor:ME?(ME.idea||ME.uid):'',tramos:tramos,spaces:espacios.slice().sort(cmpEsp),bookings:[],ocupaciones:{},ocuMeta:{},unidades:unidades,ports:[],lapcfg:[],cars:[]};
         CURSO_MANUAL=true;CURSO_PICK=cid2;S.cursoSel=cid2;applyCourse();syncCursoUI();
         toast('Curso «'+nombre+'» creado y abierto');
       }
@@ -3249,7 +3199,6 @@ function delCurso(cid){
   confirmDlg('Eliminar curso','Vas a eliminar el curso <b>'+esc(c.nombre)+'</b>, con <b>'+nE+'</b> espacio'+(nE===1?'':'s')+' y <b>'+nR+'</b> reserva'+(nR===1?'':'s')+'. <b>Esta acción es definitiva y no se puede deshacer.</b>','Eliminar definitivamente',async()=>{
     try{
       await dbDel('cursos/'+cid);
-      delete S.cursos[cid]; // evita que applyCourse() reabra el curso recién eliminado
       if(S.cursoActual===cid){
         const others=Object.keys(S.cursos).filter(x=>x!==cid);
         if(others.length)await dbSet('config/cursoActual',others.sort((a,b)=>String(S.cursos[b].nombre).localeCompare(String(S.cursos[a].nombre),'es'))[0]);
@@ -3285,7 +3234,6 @@ function buildNav(){
     const adminPass=await seedIfEmpty();
     if(adminPass)showAdminFirstRun(adminPass);
     await migrateCourses();
-    await migrateIdeaNorm();
     await migratePassToIdea();
     startSync();
     const ok=await restoreSession();
