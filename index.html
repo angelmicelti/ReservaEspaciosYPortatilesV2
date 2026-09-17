@@ -1806,7 +1806,7 @@ function parseTeacherRows(rows){
     const nombre=get('nombre'),dni=get('dni').toUpperCase();
     if(!nombre&&!dni)continue;
     if(dni&&seen.has(dni))continue;if(dni)seen.add(dni);
-if(!dni){const nk='n:'+normTxt(nombre);if(seen.has(nk))continue;seen.add(nk)} /* filas sin DNI repetidas: una sola cuenta */
+    if(!dni){const nk='n:'+normTxt(nombre);if(seen.has(nk))continue;seen.add(nk)} /* filas sin DNI repetidas: una sola cuenta */
     out.push({nombre:nombre,dni:dni,puesto:get('puesto'),toma:get('toma'),cese:get('cese'),dep:get('dep'),tel:fixPhone(get('tel')),mov:fixPhone(get('mov')),idea:normIdea(get('idea')),cuenta:get('cuenta'),coord:/^s/i.test(get('coord'))?'Sí':'No'});
   }
   return out;
@@ -1880,7 +1880,7 @@ async function applyImport(list,mode,pwMode,pwComun){
       let ex=t.dni?exByDni[t.dni]:null;
       if(!ex&&normIdea(t.idea))ex=exByIdea[normIdea(t.idea)]||null;
       if(ex){
-const upd={nombre:t.nombre,dni:(t.dni||ex.dni||''),puesto:t.puesto,toma:t.toma,cese:t.cese,dep:t.dep,tel:t.tel,mov:t.mov,idea:(t.idea||ex.idea||''),cuenta:t.cuenta,coord:t.coord}; // sin IdEA en el fichero: se conserva el que ya había (y se corrige el DNI si cambió)
+        const upd={nombre:t.nombre,dni:(t.dni||ex.dni||''),puesto:t.puesto,toma:t.toma,cese:t.cese,dep:t.dep,tel:t.tel,mov:t.mov,idea:(t.idea||ex.idea||''),cuenta:t.cuenta,coord:t.coord}; // sin IdEA en el fichero: se conserva el que ya había (y se corrige el DNI si cambió)
         Object.assign(ex,upd);await dbUpd('usuarios/'+ex.uid,upd);actual++;
       }else{
         const u=cl(t);
