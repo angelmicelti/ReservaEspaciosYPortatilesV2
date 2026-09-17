@@ -16,7 +16,7 @@
    ============================================================ */
 'use strict';
 
-const CACHE_VERSION = 'v1.0.8';
+const CACHE_VERSION = 'v1.0.10';
 const CACHE = 'reservas-ies-' + CACHE_VERSION;
 const PAGE = './index.html';                  /* puerta de entrada (start_url) */
 const APP = './index.html';    /* la aplicación */
